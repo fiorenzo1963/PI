@@ -227,7 +227,8 @@ void make_pi(int digits)
 	 * print PI.
 	 * conversion from internal binary representation to decimal takes a long time.
 	 */
-	s = get_float_to_str(&pi, digits);
+	s = get_float_to_str(&pi, digits + 1); /* the +1 accounts for the decimal point */
+
 	time2 = gettimestamp_nsecs();
 	ts_to_date_str(datebuf, sizeof (datebuf), time2);
 	ts_to_offset_str(offsetbuf, sizeof (offsetbuf), time2 - tss3);
@@ -235,6 +236,7 @@ void make_pi(int digits)
 	printf("pi(k = %d, d = %d):\n", max_k, digits);
 	printf("\n");
 	print_pi(s);
+
 	free_float_str(s);
 
 	mpfr_clear(term_dividend);
