@@ -1,0 +1,5 @@
+mpfr_pi_ramananujan
+*.log
+*.out
+core
+*.o

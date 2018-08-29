@@ -7,6 +7,9 @@
 #include <assert.h>
 #include <mpfr.h>
 
+#include "stringify.h"
+#include "subr.h"
+
 /*
  * Compute PI using MPFR abitrary precision floating point library to N digits,
  * using Srinivasa Ramanujan's formula from 1904.
@@ -41,26 +44,6 @@
 #define MPFR_PREC_USED		1000000
 #define MPFR_PREC_USED_STR	__stringify(MPFR_PREC_USED)
 
-#ifndef __LINUX_STRINGIFY_H
-#define __LINUX_STRINGIFY_H
-/* Indirect stringification.  Doing two levels allows the parameter to be a
- * macro itself.  For example, compile with -DFOO=bar, __stringify(FOO)
- * converts to "bar".
- */
-#define __stringify_1(x...)	#x
-#define __stringify(x...)	__stringify_1(x)
-#endif	/* !__LINUX_STRINGIFY_H */
-
-static double gettimestamp_secs()
-{
-	struct timespec ts;
-	double r;
-	clock_gettime(CLOCK_REALTIME, &ts);
-	r = (double)ts.tv_sec;
-	r += (double)ts.tv_nsec / (1000.0 * 1000.0 * 1000.0);
-	return r;
-}
-
 char *get_float_to_str(mpfr_t *pi, int digits)
 {
 	char *buf;
@@ -72,6 +55,7 @@ char *get_float_to_str(mpfr_t *pi, int digits)
 	mpfr_snprintf(buf, digits, "%." MPFR_PREC_USED_STR "R*f", MPFR_RNDD, *pi);
 	return buf;
 }
+
 void free_float_str(char *buf)
 {
 	free(buf);
