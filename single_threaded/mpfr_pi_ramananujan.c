@@ -67,6 +67,7 @@ void make_pi(int digits)
 	int k, max_k;
 	int kt0, tk1;
 	double time0, time1, time2;
+        uint64_t tss3, ts3, ts4;
 
 	mpfr_t term_dividend;
 	mpfr_t term_divisor;
@@ -118,6 +119,7 @@ void make_pi(int digits)
 	/*
 	 * the extra iterations are not technically necessary, but just to be safe .....
 	 */
+	tss3 = ts3 = gettimestamp_nsecs();
 	for (k = 0; k <= max_k + SLACK_K; k++) {
 
 		// printf("make_pi: k = %d (estimated digits = %d)\n", k, (k+1)*8);
@@ -176,6 +178,13 @@ void make_pi(int digits)
 		//mpfr_out_str(stdout, 10, 0, term_sum, MPFR_RNDD);
 		//printf("\n");
 
+		ts4 = gettimestamp_nsecs();
+		if (ts_secs_portion(ts4 - ts3) >= 10) {
+			char buf[128];
+			ts_to_offset_str(buf, sizeof (buf), ts4 - tss3);
+			printf("%s: k = %d/%d\n", buf, k, max_k);
+			ts3 = ts4;
+		}
 	}
 
 	/*
