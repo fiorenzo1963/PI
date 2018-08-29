@@ -12,7 +12,7 @@
 
 /*
  * Compute PI using MPFR abitrary precision floating point library to N digits,
- * using Srinivasa Ramanujan's formula from 1904.
+ * using Srinivasa Ramanujan's formula from 1910.
  *
  * Copyright (C) Fio Cattaneo <fio@cattaneo.us>, All Rights Reserved.
  *
@@ -27,7 +27,7 @@
  */
 
 /*
- * Srinivasa Ramanujan 1904 formula:
+ * Srinivasa Ramanujan 1910 formula:
  *
  * 1/PI = CMULT * SUM(k, 0..infinity) TERM(k)
  * 
@@ -40,6 +40,9 @@
  */
 #define DIGITS_TO_K(d)	((d) / 8)
 #define SLACK_K		DIGITS_TO_K(128)
+
+#define DIGITS_PER_LINE		100
+#define ISOLATE_DECIMAL_PART	1
 
 #define MPFR_PREC_USED		1000000
 #define MPFR_PREC_USED_STR	__stringify(MPFR_PREC_USED)
@@ -66,8 +69,10 @@ void make_pi(int digits)
 {
 	int k, max_k;
 	int kt0, tk1;
-	double time0, time1, time2;
-        uint64_t tss3, ts3, ts4;
+	uint64_t time0, time1, time2;
+        uint64_t tss3, tss4;
+	char datebuf[128];
+	char offsetbuf[128];
 
 	mpfr_t term_dividend;
 	mpfr_t term_divisor;
@@ -87,20 +92,6 @@ void make_pi(int digits)
 	mpfr_init2(pi, MPFR_PREC_USED);
 	mpfr_init2(t0, MPFR_PREC_USED);
 
-/*
- * Srinivasa Ramanujan formula:
- *
- * 1/PI = CMULT * SUM(k, 0..infinity) TERM(k)
- * 
- * CMULT = (2 * sqrt(2)) / 9801			      # constant
- *
- * TERM(k) = [ (4 * k)! * (1103 + 26390 * k) ] /      # divend
- *           [ ((k!) ^ 4) * (396 ^ (4 * k)) ]         # divisor
- *
- */
-
-	time0 = gettimestamp_secs();
-
 	/* calculate cmult constant */
 	mpfr_sqrt_ui(cmult, 2, MPFR_RNDD);
 	mpfr_mul_ui(cmult, cmult, 2, MPFR_RNDD);
@@ -112,14 +103,17 @@ void make_pi(int digits)
 	/* set term_sum */
 	mpfr_set_ui(term_sum, 0, MPFR_RNDD);
 
+	time0 = gettimestamp_nsecs();
+	ts_to_date_str(datebuf, sizeof (datebuf), time0);
+	ts_to_offset_str(offsetbuf, sizeof (offsetbuf), time0 - time0);
 	max_k = DIGITS_TO_K(digits);
 
-	printf("make_pi, digits = %d, max k = %d\n", digits, max_k);
+	printf("%s: %s: make_pi, digits = %d, max k = %d\n", datebuf, offsetbuf, digits, max_k);
 
 	/*
 	 * the extra iterations are not technically necessary, but just to be safe .....
 	 */
-	tss3 = ts3 = gettimestamp_nsecs();
+	tss3 = gettimestamp_nsecs();
 	for (k = 0; k <= max_k + SLACK_K; k++) {
 
 		// printf("make_pi: k = %d (estimated digits = %d)\n", k, (k+1)*8);
@@ -178,14 +172,20 @@ void make_pi(int digits)
 		//mpfr_out_str(stdout, 10, 0, term_sum, MPFR_RNDD);
 		//printf("\n");
 
-		ts4 = gettimestamp_nsecs();
-		if (ts_secs_portion(ts4 - ts3) >= 10) {
-			char buf[128];
-			ts_to_offset_str(buf, sizeof (buf), ts4 - tss3);
-			printf("%s: k = %d/%d\n", buf, k, max_k);
-			ts3 = ts4;
+		tss4 = gettimestamp_nsecs();
+		if (ts_secs_portion(tss4 - tss3) >= 10) {
+			ts_to_date_str(datebuf, sizeof (datebuf), gettimestamp_nsecs());
+			ts_to_offset_str(offsetbuf, sizeof (offsetbuf), tss4 - tss3);
+			printf("%s: %s: k = %d, max_k = %d\n", datebuf, offsetbuf, k, max_k);
+			tss3 = tss4;
 		}
 	}
+
+	tss4 = gettimestamp_nsecs();
+	ts_to_date_str(datebuf, sizeof (datebuf), gettimestamp_nsecs());
+	ts_to_offset_str(offsetbuf, sizeof (offsetbuf), tss4 - tss3);
+	printf("%s: %s: k = %d, max_k = %d\n", datebuf, offsetbuf, k, max_k);
+	tss3 = tss4;
 
 	/*
 	 * make sure to use max_k in digits estimation,
@@ -207,21 +207,21 @@ void make_pi(int digits)
 	//mpfr_out_str(stdout, 10, 0, pi, MPFR_RNDD);
 	//printf("\n");
 
-	time1 = gettimestamp_secs();
+	time1 = gettimestamp_nsecs();
 
 	/*
 	 * print PI.
 	 * conversion from internal binary representation to decimal takes a long time.
 	 */
-	{
-		char *s = get_float_to_str(&pi, digits);
-		time2 = gettimestamp_secs();
-
-		printf("compute=%lfs, convert=%lfs\n", (time1 - time0), (time2 - time1));
-		printf("pi(k=%d,d=%d) = %s\n", max_k, digits, s);
-		free_float_str(s);
-	}
-
+	s = get_float_to_str(&pi, digits);
+	time2 = gettimestamp_nsecs();
+	ts_to_date_str(datebuf, sizeof (datebuf), time2);
+	ts_to_offset_str(offsetbuf, sizeof (offsetbuf), time2 - tss3);
+	printf("%s: %s: (finalization and conversion base 10)\n", datebuf, offsetbuf);
+	printf("pi(k = %d, d = %d):\n", max_k, digits);
+	printf("\n");
+	printf("%s\n", s);
+	free_float_str(s);
 
 	mpfr_clear(term_dividend);
 	mpfr_clear(term_divisor);

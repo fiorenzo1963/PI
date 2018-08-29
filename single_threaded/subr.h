@@ -7,7 +7,6 @@
 #include <time.h>
 #include <inttypes.h>
 
-extern double gettimestamp_secs(void);
 extern uint64_t gettimestamp_nsecs(void);
 
 static inline uint64_t nsecs_to_secs(uint64_t ns)
