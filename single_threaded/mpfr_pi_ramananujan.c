@@ -41,8 +41,7 @@
 #define DIGITS_TO_K(d)	((d) / 8)
 #define SLACK_K		DIGITS_TO_K(128)
 
-#define DIGITS_PER_LINE		100
-#define ISOLATE_DECIMAL_PART	1
+#define CHARACTERS_PER_LINE	100
 
 #define MPFR_PREC_USED		1000000
 #define MPFR_PREC_USED_STR	__stringify(MPFR_PREC_USED)
@@ -64,6 +63,21 @@ void free_float_str(char *buf)
 	free(buf);
 }
 
+void print_pi(const char *pi_string)
+{
+	size_t i, sz = strlen(pi_string);
+	for (i = 0; i < sz; ) {
+		char buf[CHARACTERS_PER_LINE + 1];
+		int cc = CHARACTERS_PER_LINE;
+		if ((sz - i) < cc)
+			cc = sz - i;
+		strncpy(buf, &pi_string[i], cc);
+		buf[cc] = '\0';
+		printf("%s\n", buf);
+		i += cc;
+	}
+	assert(i == sz);
+}
 
 void make_pi(int digits)
 {
@@ -220,7 +234,7 @@ void make_pi(int digits)
 	printf("%s: %s: (finalization and conversion base 10)\n", datebuf, offsetbuf);
 	printf("pi(k = %d, d = %d):\n", max_k, digits);
 	printf("\n");
-	printf("%s\n", s);
+	print_pi(s);
 	free_float_str(s);
 
 	mpfr_clear(term_dividend);
