@@ -63,7 +63,7 @@ void free_float_str(char *buf)
 	free(buf);
 }
 
-void print_pi(const char *pi_string)
+void writeout_pi(FILE *fd, const char *pi_string)
 {
 	size_t i, sz = strlen(pi_string);
 	for (i = 0; i < sz; ) {
@@ -73,20 +73,23 @@ void print_pi(const char *pi_string)
 			cc = sz - i;
 		strncpy(buf, &pi_string[i], cc);
 		buf[cc] = '\0';
-		printf("%s\n", buf);
+		fprintf(fd, "%s\n", buf);
 		i += cc;
 	}
+	fclose(fd);
 	assert(i == sz);
 }
 
 void make_pi(int digits)
 {
-	int k, max_k;
+	FILE *fd;
+	int k, last_k, max_k;
 	int kt0, tk1;
 	uint64_t time0, time1, time2;
         uint64_t tss3, tss4;
 	char datebuf[128];
 	char offsetbuf[128];
+	char filename[128];
 
 	mpfr_t term_dividend;
 	mpfr_t term_divisor;
@@ -97,6 +100,10 @@ void make_pi(int digits)
 	mpfr_t t0;
 
 	char *s;
+
+	snprintf(filename, sizeof (filename), "FPI_%d.txt", digits);
+	fd = fopen(filename, "w");
+	assert(fd != NULL);
 
 	mpfr_init2(term_dividend, MPFR_PREC_USED);
 	mpfr_init2(term_divisor, MPFR_PREC_USED);
@@ -128,6 +135,7 @@ void make_pi(int digits)
 	 * the extra iterations are not technically necessary, but just to be safe .....
 	 */
 	tss3 = gettimestamp_nsecs();
+	last_k = 0;
 	for (k = 0; k <= max_k + SLACK_K; k++) {
 
 		// printf("make_pi: k = %d (estimated digits = %d)\n", k, (k+1)*8);
@@ -190,16 +198,18 @@ void make_pi(int digits)
 		if (ts_secs_portion(tss4 - tss3) >= 10) {
 			ts_to_date_str(datebuf, sizeof (datebuf), gettimestamp_nsecs());
 			ts_to_offset_str(offsetbuf, sizeof (offsetbuf), tss4 - tss3);
-			printf("%s: %s: k = %d, max_k = %d\n", datebuf, offsetbuf, k, max_k);
+			printf("%s: %s: k = %d, k_delta = %d, max_k = %d\n", datebuf, offsetbuf, k, (k - last_k), max_k);
 			tss3 = tss4;
+			last_k = k;
 		}
 	}
 
 	tss4 = gettimestamp_nsecs();
 	ts_to_date_str(datebuf, sizeof (datebuf), gettimestamp_nsecs());
 	ts_to_offset_str(offsetbuf, sizeof (offsetbuf), tss4 - tss3);
-	printf("%s: %s: k = %d, max_k = %d\n", datebuf, offsetbuf, k, max_k);
+	printf("%s: %s: k = %d, k_delta = %d, max_k = %d\n", datebuf, offsetbuf, k, (k - last_k), max_k);
 	tss3 = tss4;
+	last_k = k;
 
 	/*
 	 * make sure to use max_k in digits estimation,
@@ -235,7 +245,7 @@ void make_pi(int digits)
 	printf("%s: %s: (finalization and conversion base 10)\n", datebuf, offsetbuf);
 	printf("pi(k = %d, d = %d):\n", max_k, digits);
 	printf("\n");
-	print_pi(s);
+	writeout_pi(fd, s);
 
 	free_float_str(s);
 
@@ -252,6 +262,11 @@ void make_pi(int digits)
 int main(int argc, char **argv)
 {
 	int digits;
+
+	setbuf(stdout, NULL);
+	setbuf(stderr, NULL);
+	setbuf(stdin, NULL);
+	fclose(stdin);
 
 	printf("MPFR library: %-12s\nMPFR header:  %s (based on %d.%d.%d)\n",
 	       mpfr_get_version (), MPFR_VERSION_STRING, MPFR_VERSION_MAJOR,
