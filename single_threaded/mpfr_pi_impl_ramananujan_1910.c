@@ -1,0 +1,324 @@
+#include <stdio.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+#include <inttypes.h>
+#include <assert.h>
+#include <mpfr.h>
+
+#include "stringify.h"
+#include "subr.h"
+#include "mpfr_pi_generic.h"
+
+
+/*
+ * Compute PI using MPFR abitrary precision floating point library to N digits,
+ * using Srinivasa Ramanujan's formula from 1910.
+ *
+ * Copyright (C) Fio Cattaneo <fio@cattaneo.us>, All Rights Reserved.
+ *
+ * This code is distributed under dual BSD/GPLv2 open source license.
+ *
+ */
+
+/*
+ * MPFR arbitrary precision floating point library docs:
+ *
+ * http://cs.swan.ac.uk/~csoliver/ok-sat-library/internet_html/doc/doc/Mpfr/3.0.0/mpfr.html/index.html#Top
+ */
+
+/*
+ * Srinivasa Ramanujan 1910 formula:
+ *
+ * More info on Ramanujan PI formulas:
+ * https://en.wikipedia.org/wiki/Srinivasa_Ramanujan
+ * https://en.wikipedia.org/wiki/Approximations_of_%CF%80
+ * https://en.wikipedia.org/wiki/Ramanujan%E2%80%93Sato_series
+ *
+ * 1/PI = CMULT * SUM(k, 0..infinity) TERM(k)
+ * 
+ * CMULT = (2 * sqrt(2)) / 9801			      # constant
+ *                                                    # 9801 = 99^2
+ *
+ * TERM(k) = [ (4 * k)! * (1103 + 26390 * k) ] /      # divend
+ *           [ ((k!) ^ 4) * (396 ^ (4 * k)) ]         # divisor
+ *                                                    # 396 = 99 * 4
+ */
+
+
+#if 0
+struct mpfr_pi_impl {
+	/*
+	 * return name of the implementation.
+	 */
+	const char * (*f_impl_name)(void);
+	/*
+	 * initialize an implementation and return its struct
+	 * the init function will add extra state variables to this struct, so do not make any
+	 * size assumptions on it.
+	 * sets iteration K value to 0 and other implementation specific constants
+	 * set out_iterations to rhe number of estimated iterations, if known, otherwise 0.
+	 * if the implementation optimizes this calculation and keeps intermediate state, initialize this state.
+	 */
+	struct mpfr_pi_impl * (*f_initialize)(const long digits, long *out_iterations);
+	/*
+	 * free an implementation struct.
+	 */
+	void (*f_deinitialize)(struct mpfr_pi_impl *impl);
+	/*
+	 * compute K(i) term of the series.
+	 * the implementation is free to optimize this calculation and keep intermediate state.
+	 * return 0 if more iterations are needed, 1 if the desired precision has been reached.
+	 * sets computed k in k_out.
+	 * set digits_out if the digits are known, otherwise sets to 0
+	 * (may set digits_out every now and then, so it's not guaranteed to be updated at every iteration).
+	 */
+	int (*f_pi_compute_next_term)(struct mpfr_pi_impl *impl, long *ki_out, long *digits_out);
+	/*
+	 * this can be called anytime, return NULL if k is still 0.
+	 * it computes PI based on the current values.
+	 * if called after f_pi_computer_term returns 1, it's guaranteed to have at least
+	 * the desired number of digits of precision.
+	 */
+	 mpfr_t * (*f_pi_get_value)(struct mpfr_pi_impl *impl);
+};
+#endif
+
+struct __mpfr_pi_impl {
+	/* generic part */
+	struct mpfr_pi_impl g;
+	/* private part */
+	int start_pi_compute; /* was start_pi_compute called? */
+	int curr_k; /* current iteration -- compute Ki must be called with this iteration number. compute Ki will increment k */
+	int cur_digits;
+	int max_k; /* max_k to reach desired digits */
+	int desired_digits; /* desired digits */
+	/* various state variables needed */
+	mpfr_t term_dividend;
+	mpfr_t term_divisor;
+	mpfr_t term;
+	mpfr_t term_sum;
+	mpfr_t cmult;
+	mpfr_t pi;
+	mpfr_t t0;
+};
+
+#define DIGITS_TO_K(d)	((d) / 8)		/* estimate number of iterations to get "d" digits */
+#define SLACK_K		DIGITS_TO_K(8 * 8)	/* slack factor added to the above just to be sure */
+
+void make_pi(int digits)
+{
+	FILE *fd;
+	int k, last_k, max_k;
+	int kt0, tk1;
+	uint64_t time0, time1, time2;
+        uint64_t tss3, tss4;
+	char datebuf[128];
+	char offsetbuf[128];
+	char filename[128];
+
+	mpfr_t term_dividend;
+	mpfr_t term_divisor;
+	mpfr_t term;
+	mpfr_t term_sum;
+	mpfr_t cmult;
+	mpfr_t pi;
+	mpfr_t t0;
+
+	char *s;
+
+	snprintf(filename, sizeof (filename), "FPI_%d.txt", digits);
+	fd = fopen(filename, "w");
+	assert(fd != NULL);
+
+	mpfr_init2(term_dividend, CFG_MPFR_PREC);
+	mpfr_init2(term_divisor, CFG_MPFR_PREC);
+	mpfr_init2(term, CFG_MPFR_PREC);
+	mpfr_init2(term_sum, CFG_MPFR_PREC);
+	mpfr_init2(cmult, CFG_MPFR_PREC);
+	mpfr_init2(pi, CFG_MPFR_PREC);
+	mpfr_init2(t0, CFG_MPFR_PREC);
+
+	/* calculate cmult constant */
+	mpfr_sqrt_ui(cmult, 2, CFG_MPFR_RND);
+	mpfr_mul_ui(cmult, cmult, 2, CFG_MPFR_RND);
+	mpfr_div_ui(cmult, cmult, 9801, CFG_MPFR_RND);
+	// printf("make_pi: cmult = ");
+	// mpfr_out_str(stdout, 10, 0, cmult, CFG_MPFR_RND);
+	// printf("\n");
+
+	/* set term_sum */
+	mpfr_set_ui(term_sum, 0, CFG_MPFR_RND);
+
+	time0 = gettimestamp_nsecs();
+	ts_to_date_str(datebuf, sizeof (datebuf), time0);
+	ts_to_offset_str(offsetbuf, sizeof (offsetbuf), time0 - time0);
+	max_k = DIGITS_TO_K(digits);
+
+	printf("%s: %s: make_pi, digits = %d, max k = %d\n", datebuf, offsetbuf, digits, max_k);
+
+	/*
+	 * the extra iterations are not technically necessary, but just to be safe .....
+	 */
+	tss3 = gettimestamp_nsecs();
+	last_k = 0;
+	for (k = 0; k <= max_k + SLACK_K; k++) {
+
+		// printf("make_pi: k = %d (estimated digits = %d)\n", k, (k+1)*8);
+
+
+		/*
+		 * calculate dividend
+		 *
+		 * [ (4 * k)! * (1103 + 26390 * k) ]
+		 *
+		 */
+
+		mpfr_fac_ui(term_dividend, (4 * k), CFG_MPFR_RND);
+		/* term_dividend now has (4*k)! */
+		mpfr_set_ui(t0, 26390, CFG_MPFR_RND);
+		mpfr_mul_ui(t0, t0, k, CFG_MPFR_RND);
+		mpfr_add_ui(t0, t0, 1103, CFG_MPFR_RND);
+		/* t0 has (1103 + 26390 * k) */
+		mpfr_mul(term_dividend, term_dividend, t0, CFG_MPFR_RND);
+		/* term_dividend calculated */
+		//printf("make_pi: term_dividend(%d) = ", k);
+		//mpfr_out_str(stdout, 10, 0, term_dividend, CFG_MPFR_RND);
+		//printf("\n");
+
+		/*
+		 * calculate divisor
+		 *
+		 * [ ((k!) ^ 4) * (396 ^ (4 * k)) ]
+		 *
+		 */
+		mpfr_fac_ui(term_divisor, k, CFG_MPFR_RND);
+		mpfr_pow_ui(term_divisor, term_divisor, 4, CFG_MPFR_RND);
+		/* term_divisor now has ((k!) ^ 4) */
+		mpfr_set_ui(t0, 396, CFG_MPFR_RND);
+		mpfr_pow_ui(t0, t0, (4 * k), CFG_MPFR_RND);
+		/* t0 has (396 ^ (4 * k)) */
+		mpfr_mul(term_divisor, term_divisor, t0, CFG_MPFR_RND);
+		/* term_divisor calculated */
+		//printf("make_pi: term_divisor(%d) = ", k);
+		//mpfr_out_str(stdout, 10, 0, term_divisor, CFG_MPFR_RND);
+		//printf("\n");
+
+		/*
+		 * calculate term
+		 */
+		mpfr_div(term, term_dividend, term_divisor, CFG_MPFR_RND);
+		//printf("make_pi: term(%d) = ", k);
+		//mpfr_out_str(stdout, 10, 0, term, CFG_MPFR_RND);
+		//printf("\n");
+
+		/*
+		 * calculate term_sum
+		 */
+		mpfr_add(term_sum, term_sum, term, CFG_MPFR_RND);
+		//printf("make_pi: term_sum(%d) = ", k);
+		//mpfr_out_str(stdout, 10, 0, term_sum, CFG_MPFR_RND);
+		//printf("\n");
+
+		tss4 = gettimestamp_nsecs();
+		if (ts_secs_portion(tss4 - tss3) >= 10) {
+			ts_to_date_str(datebuf, sizeof (datebuf), gettimestamp_nsecs());
+			ts_to_offset_str(offsetbuf, sizeof (offsetbuf), tss4 - time0);
+			printf("%s: %s: k = %d, k_delta = %d, max_k = %d\n", datebuf, offsetbuf, k, (k - last_k), max_k);
+			tss3 = tss4;
+			last_k = k;
+		}
+	}
+
+	tss4 = gettimestamp_nsecs();
+	ts_to_date_str(datebuf, sizeof (datebuf), gettimestamp_nsecs());
+	ts_to_offset_str(offsetbuf, sizeof (offsetbuf), tss4 - time0);
+	printf("%s: %s: k = %d, k_delta = %d, max_k = %d\n", datebuf, offsetbuf, k, (k - last_k), max_k);
+	tss3 = tss4;
+	last_k = k;
+
+	/*
+	 * make sure to use max_k in digits estimation,
+	 * as k is above k just to add some slack space.
+	 */
+
+	/*
+	 * calculate 1 / PI = cmult * term_sum
+	 */
+	mpfr_mul(pi, cmult, term_sum, CFG_MPFR_RND);
+	//printf("1/pi(%d) = ", k);
+	//mpfr_out_str(stdout, 10, 0, pi, CFG_MPFR_RND);
+	//printf("\n");
+	/*
+	 * calculate PI from 1 / PI
+	 */
+	mpfr_ui_div(pi, 1, pi, CFG_MPFR_RND);
+	//printf("pi(%d - %d) = %s\n", k, k * 8, get_pi_value(pi, k*8));
+	//mpfr_out_str(stdout, 10, 0, pi, CFG_MPFR_RND);
+	//printf("\n");
+
+	time1 = gettimestamp_nsecs();
+
+	/*
+	 * print PI.
+	 * conversion from internal binary representation to decimal takes a long time.
+	 */
+	s = mpfr_t_to_str(&pi, digits + 1); /* the +1 accounts for the decimal point */
+
+	time2 = gettimestamp_nsecs();
+	ts_to_date_str(datebuf, sizeof (datebuf), time2);
+	ts_to_offset_str(offsetbuf, sizeof (offsetbuf), time2 - tss3);
+	printf("%s: %s: (finalization and conversion base 10)\n", datebuf, offsetbuf);
+	printf("pi(k = %d, d = %d):\n", max_k, digits);
+	printf("\n");
+	writeout_pi(fd, s);
+
+	free_mpfr_str(s);
+
+	mpfr_clear(term_dividend);
+	mpfr_clear(term_divisor);
+	mpfr_clear(term);
+	mpfr_clear(term_sum);
+	mpfr_clear(cmult);
+	mpfr_clear(pi);
+	mpfr_clear(t0);
+	mpfr_free_cache();
+}
+
+#if 0
+
+struct mpfr_pi_impl {
+	/*
+	 * return name of the implementation.
+	 */
+	const char * (*f_impl_name)(void);
+	/*
+	 * initialize an implementation and return its struct
+	 * the init function will add extra state variables to this struct, so do not make any
+	 * size assumptions on it.
+	 */
+	struct mpfr_pi_impl * (*f_initialize)(void);
+	/* free an implementation struct */
+	void (*f_deinitialize)(struct mpfr_pi_impl *impl);
+	/*
+	 * start PI calculation. sets K value to 0 and other implementation specific constants
+	 * returns number of estimated iterations, if known, otherwise returns 0.
+	 * if the implementation optimizes this calculation and keeps intermediate state, initialize this state.
+	 */
+	void (*f_start_pi_compute)(struct mpfr_pi_impl *impl, const int digits, int *estimated_iterations);
+	/*
+	 * compute K(i) term of the series.
+	 * the implementation is free to optimize this calculation and keep intermediate state.
+	 * return 0 if more iterations are needed, 1 if the desired precision has been reached.
+	 */
+	int (*f_pi_compute_term)(struct mpfr_pi_impl *impl, const int Ki);
+	/*
+	 * this can be called anytime, so long as k > 0.
+	 * it computes PI based on the current values.
+	 * if called after f_pi_computer_term returns 1, it's guaranteed to have at least
+	 * the desired number of digits of precision.
+	 */
+	 mpfr_t * (*f_pi_get_current_pi)(struct mpfr_pi_impl *impl);
+};
+#endif

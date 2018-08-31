@@ -38,31 +38,38 @@ static void free_mpfr_str(char *buf)
 
 struct mpfr_pi_impl {
 	/*
+	 * return name of the implementation.
+	 */
+	const char * (*f_impl_name)(void);
+	/*
 	 * initialize an implementation and return its struct
 	 * the init function will add extra state variables to this struct, so do not make any
 	 * size assumptions on it.
-	 */
-	struct mpfr_pi_impl * (*f_initialize)(void);
-	/* free an implementation struct */
-	void (*f_deinitialize)(struct mpfr_pi_impl *impl);
-	/*
-	 * start PI calculation. sets K value to 0 and other implementation specific constants
-	 * returns number of estimated iterations, if known, otherwise returns 0.
+	 * sets iteration K value to 0 and other implementation specific constants
+	 * set out_iterations to rhe number of estimated iterations, if known, otherwise 0.
 	 * if the implementation optimizes this calculation and keeps intermediate state, initialize this state.
 	 */
-	void (*f_start_pi_compute)(struct mpfr_pi_impl *impl, const int digits, int *estimated_iterations);
+	struct mpfr_pi_impl * (*f_initialize)(const long digits, long *out_iterations);
+	/*
+	 * free an implementation struct.
+	 */
+	void (*f_deinitialize)(struct mpfr_pi_impl *impl);
 	/*
 	 * compute K(i) term of the series.
 	 * the implementation is free to optimize this calculation and keep intermediate state.
 	 * return 0 if more iterations are needed, 1 if the desired precision has been reached.
+	 * sets computed k in k_out.
+	 * set digits_out if the digits are known, otherwise sets to 0
+	 * (may set digits_out every now and then, so it's not guaranteed to be updated at every iteration).
 	 */
-	int (*f_pi_compute_term)(struct mpfr_pi_impl *impl, const int Ki);
+	int (*f_pi_compute_next_term)(struct mpfr_pi_impl *impl, long *ki_out, long *digits_out);
 	/*
-	 * this can be called anytime. it computes PI based on the current values.
+	 * this can be called anytime, return NULL if k is still 0.
+	 * it computes PI based on the current values.
 	 * if called after f_pi_computer_term returns 1, it's guaranteed to have at least
 	 * the desired number of digits of precision.
 	 */
-	int (*f_pi_get_current_pi)(struct mpfr_pi_impl *impl, const int Ki);
+	 mpfr_t * (*f_pi_get_value)(struct mpfr_pi_impl *impl);
 };
 
 #endif
