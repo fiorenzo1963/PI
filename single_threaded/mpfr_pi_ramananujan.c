@@ -9,6 +9,8 @@
 
 #include "stringify.h"
 #include "subr.h"
+#include "mpfr_pi_generic.h"
+
 
 /*
  * Compute PI using MPFR abitrary precision floating point library to N digits,
@@ -42,26 +44,6 @@
 #define SLACK_K		DIGITS_TO_K(128)
 
 #define CHARACTERS_PER_LINE	100
-
-#define MPFR_PREC_USED		1000000
-#define MPFR_PREC_USED_STR	__stringify(MPFR_PREC_USED)
-
-char *get_float_to_str(mpfr_t *pi, int digits)
-{
-	char *buf;
-	assert(pi != NULL);
-	assert(digits > 0);
-	// printf("get_float_to_str(prec=%d, digits=%d)\n", MPFR_PREC_USED, digits);
-	buf = malloc(digits + 10);
-	assert(buf != NULL);
-	mpfr_snprintf(buf, digits, "%." MPFR_PREC_USED_STR "R*f", MPFR_RNDD, *pi);
-	return buf;
-}
-
-void free_float_str(char *buf)
-{
-	free(buf);
-}
 
 void writeout_pi(FILE *fd, const char *pi_string)
 {
@@ -105,24 +87,24 @@ void make_pi(int digits)
 	fd = fopen(filename, "w");
 	assert(fd != NULL);
 
-	mpfr_init2(term_dividend, MPFR_PREC_USED);
-	mpfr_init2(term_divisor, MPFR_PREC_USED);
-	mpfr_init2(term, MPFR_PREC_USED);
-	mpfr_init2(term_sum, MPFR_PREC_USED);
-	mpfr_init2(cmult, MPFR_PREC_USED);
-	mpfr_init2(pi, MPFR_PREC_USED);
-	mpfr_init2(t0, MPFR_PREC_USED);
+	mpfr_init2(term_dividend, CFG_MPFR_PREC);
+	mpfr_init2(term_divisor, CFG_MPFR_PREC);
+	mpfr_init2(term, CFG_MPFR_PREC);
+	mpfr_init2(term_sum, CFG_MPFR_PREC);
+	mpfr_init2(cmult, CFG_MPFR_PREC);
+	mpfr_init2(pi, CFG_MPFR_PREC);
+	mpfr_init2(t0, CFG_MPFR_PREC);
 
 	/* calculate cmult constant */
-	mpfr_sqrt_ui(cmult, 2, MPFR_RNDD);
-	mpfr_mul_ui(cmult, cmult, 2, MPFR_RNDD);
-	mpfr_div_ui(cmult, cmult, 9801, MPFR_RNDD);
+	mpfr_sqrt_ui(cmult, 2, CFG_MPFR_RND);
+	mpfr_mul_ui(cmult, cmult, 2, CFG_MPFR_RND);
+	mpfr_div_ui(cmult, cmult, 9801, CFG_MPFR_RND);
 	// printf("make_pi: cmult = ");
-	// mpfr_out_str(stdout, 10, 0, cmult, MPFR_RNDD);
+	// mpfr_out_str(stdout, 10, 0, cmult, CFG_MPFR_RND);
 	// printf("\n");
 
 	/* set term_sum */
-	mpfr_set_ui(term_sum, 0, MPFR_RNDD);
+	mpfr_set_ui(term_sum, 0, CFG_MPFR_RND);
 
 	time0 = gettimestamp_nsecs();
 	ts_to_date_str(datebuf, sizeof (datebuf), time0);
@@ -148,16 +130,16 @@ void make_pi(int digits)
 		 *
 		 */
 
-		mpfr_fac_ui(term_dividend, (4 * k), MPFR_RNDD);
+		mpfr_fac_ui(term_dividend, (4 * k), CFG_MPFR_RND);
 		/* term_dividend now has (4*k)! */
-		mpfr_set_ui(t0, 26390, MPFR_RNDD);
-		mpfr_mul_ui(t0, t0, k, MPFR_RNDD);
-		mpfr_add_ui(t0, t0, 1103, MPFR_RNDD);
+		mpfr_set_ui(t0, 26390, CFG_MPFR_RND);
+		mpfr_mul_ui(t0, t0, k, CFG_MPFR_RND);
+		mpfr_add_ui(t0, t0, 1103, CFG_MPFR_RND);
 		/* t0 has (1103 + 26390 * k) */
-		mpfr_mul(term_dividend, term_dividend, t0, MPFR_RNDD);
+		mpfr_mul(term_dividend, term_dividend, t0, CFG_MPFR_RND);
 		/* term_dividend calculated */
 		//printf("make_pi: term_dividend(%d) = ", k);
-		//mpfr_out_str(stdout, 10, 0, term_dividend, MPFR_RNDD);
+		//mpfr_out_str(stdout, 10, 0, term_dividend, CFG_MPFR_RND);
 		//printf("\n");
 
 		/*
@@ -166,38 +148,38 @@ void make_pi(int digits)
 		 * [ ((k!) ^ 4) * (396 ^ (4 * k)) ]
 		 *
 		 */
-		mpfr_fac_ui(term_divisor, k, MPFR_RNDD);
-		mpfr_pow_ui(term_divisor, term_divisor, 4, MPFR_RNDD);
+		mpfr_fac_ui(term_divisor, k, CFG_MPFR_RND);
+		mpfr_pow_ui(term_divisor, term_divisor, 4, CFG_MPFR_RND);
 		/* term_divisor now has ((k!) ^ 4) */
-		mpfr_set_ui(t0, 396, MPFR_RNDD);
-		mpfr_pow_ui(t0, t0, (4 * k), MPFR_RNDD);
+		mpfr_set_ui(t0, 396, CFG_MPFR_RND);
+		mpfr_pow_ui(t0, t0, (4 * k), CFG_MPFR_RND);
 		/* t0 has (396 ^ (4 * k)) */
-		mpfr_mul(term_divisor, term_divisor, t0, MPFR_RNDD);
+		mpfr_mul(term_divisor, term_divisor, t0, CFG_MPFR_RND);
 		/* term_divisor calculated */
 		//printf("make_pi: term_divisor(%d) = ", k);
-		//mpfr_out_str(stdout, 10, 0, term_divisor, MPFR_RNDD);
+		//mpfr_out_str(stdout, 10, 0, term_divisor, CFG_MPFR_RND);
 		//printf("\n");
 
 		/*
 		 * calculate term
 		 */
-		mpfr_div(term, term_dividend, term_divisor, MPFR_RNDD);
+		mpfr_div(term, term_dividend, term_divisor, CFG_MPFR_RND);
 		//printf("make_pi: term(%d) = ", k);
-		//mpfr_out_str(stdout, 10, 0, term, MPFR_RNDD);
+		//mpfr_out_str(stdout, 10, 0, term, CFG_MPFR_RND);
 		//printf("\n");
 
 		/*
 		 * calculate term_sum
 		 */
-		mpfr_add(term_sum, term_sum, term, MPFR_RNDD);
+		mpfr_add(term_sum, term_sum, term, CFG_MPFR_RND);
 		//printf("make_pi: term_sum(%d) = ", k);
-		//mpfr_out_str(stdout, 10, 0, term_sum, MPFR_RNDD);
+		//mpfr_out_str(stdout, 10, 0, term_sum, CFG_MPFR_RND);
 		//printf("\n");
 
 		tss4 = gettimestamp_nsecs();
 		if (ts_secs_portion(tss4 - tss3) >= 10) {
 			ts_to_date_str(datebuf, sizeof (datebuf), gettimestamp_nsecs());
-			ts_to_offset_str(offsetbuf, sizeof (offsetbuf), tss4 - tss3);
+			ts_to_offset_str(offsetbuf, sizeof (offsetbuf), tss4 - time0);
 			printf("%s: %s: k = %d, k_delta = %d, max_k = %d\n", datebuf, offsetbuf, k, (k - last_k), max_k);
 			tss3 = tss4;
 			last_k = k;
@@ -206,7 +188,7 @@ void make_pi(int digits)
 
 	tss4 = gettimestamp_nsecs();
 	ts_to_date_str(datebuf, sizeof (datebuf), gettimestamp_nsecs());
-	ts_to_offset_str(offsetbuf, sizeof (offsetbuf), tss4 - tss3);
+	ts_to_offset_str(offsetbuf, sizeof (offsetbuf), tss4 - time0);
 	printf("%s: %s: k = %d, k_delta = %d, max_k = %d\n", datebuf, offsetbuf, k, (k - last_k), max_k);
 	tss3 = tss4;
 	last_k = k;
@@ -219,16 +201,16 @@ void make_pi(int digits)
 	/*
 	 * calculate 1 / PI = cmult * term_sum
 	 */
-	mpfr_mul(pi, cmult, term_sum, MPFR_RNDD);
+	mpfr_mul(pi, cmult, term_sum, CFG_MPFR_RND);
 	//printf("1/pi(%d) = ", k);
-	//mpfr_out_str(stdout, 10, 0, pi, MPFR_RNDD);
+	//mpfr_out_str(stdout, 10, 0, pi, CFG_MPFR_RND);
 	//printf("\n");
 	/*
 	 * calculate PI from 1 / PI
 	 */
-	mpfr_ui_div(pi, 1, pi, MPFR_RNDD);
+	mpfr_ui_div(pi, 1, pi, CFG_MPFR_RND);
 	//printf("pi(%d - %d) = %s\n", k, k * 8, get_pi_value(pi, k*8));
-	//mpfr_out_str(stdout, 10, 0, pi, MPFR_RNDD);
+	//mpfr_out_str(stdout, 10, 0, pi, CFG_MPFR_RND);
 	//printf("\n");
 
 	time1 = gettimestamp_nsecs();
@@ -237,7 +219,7 @@ void make_pi(int digits)
 	 * print PI.
 	 * conversion from internal binary representation to decimal takes a long time.
 	 */
-	s = get_float_to_str(&pi, digits + 1); /* the +1 accounts for the decimal point */
+	s = mpfr_t_to_str(&pi, digits + 1); /* the +1 accounts for the decimal point */
 
 	time2 = gettimestamp_nsecs();
 	ts_to_date_str(datebuf, sizeof (datebuf), time2);
@@ -247,7 +229,7 @@ void make_pi(int digits)
 	printf("\n");
 	writeout_pi(fd, s);
 
-	free_float_str(s);
+	free_mpfr_str(s);
 
 	mpfr_clear(term_dividend);
 	mpfr_clear(term_divisor);
@@ -273,9 +255,9 @@ int main(int argc, char **argv)
 	       MPFR_VERSION_MINOR, MPFR_VERSION_PATCHLEVEL);
 	printf("MPFR_PREC_MAX = %ld\n", MPFR_PREC_MAX);
 	printf("\n");
-	printf("MPFR_PREC_USED = %d\n", MPFR_PREC_USED);
-	printf("mpfr_custom_get_size(MPFR_PREC_USED) = %ld\n", mpfr_custom_get_size(MPFR_PREC_USED));
-	printf("approximate decimals for MPFR_PREC_USED = %ld (upper bound)\n", (long)((float)MPFR_PREC_USED / 3.5));
+	printf("CFG_MPFR_PREC = %d\n", CFG_MPFR_PREC);
+	printf("mpfr_custom_get_size(CFG_MPFR_PREC) = %ld\n", mpfr_custom_get_size(CFG_MPFR_PREC));
+	printf("approximate decimals for CFG_MPFR_PREC = %ld (upper bound)\n", (long)((float)CFG_MPFR_PREC / 3.5));
 	printf("\n");
 
 	if (argc != 2)
@@ -286,7 +268,7 @@ int main(int argc, char **argv)
 		printf("invalid %d parameter for digits (minimum value is 8)\n", digits);
 		exit(1);
 	}
-	if ((long)digits >= (long)((float)MPFR_PREC_USED / 3.5)) {
+	if ((long)digits >= (long)((float)CFG_MPFR_PREC / 3.5)) {
 		printf("this build does not support %d digits\n", digits);
 		exit(1);
 	}
