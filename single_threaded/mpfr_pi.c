@@ -31,6 +31,7 @@
 #define CHARACTERS_PER_LINE	100
 
 extern struct mpfr_pi_impl *pi_impl_ramananujan_1910_initialize(const long digits, long *out_iterations);
+extern struct mpfr_pi_impl *pi_impl_ramananujan_1910_opt_initialize(const long digits, long *out_iterations);
 
 void writeout_pi(FILE *fd, const char *pi_string)
 {
@@ -64,7 +65,7 @@ void make_pi(long digits, const char *algorithm)
         uint64_t tss3, tss4;
 	char datebuf[128];
 	char offsetbuf[128];
-	char filename[128];
+	char filename[256];
 
 	/*
 	 * only implementation available for now
@@ -73,10 +74,15 @@ void make_pi(long digits, const char *algorithm)
 		impl = pi_impl_ramananujan_1910_initialize(digits, &estimated_k);
 		assert(impl != NULL);
 	}
+	if (strcmp(algorithm, "ramananujan_1910_opt") == 0) {
+		impl = pi_impl_ramananujan_1910_opt_initialize(digits, &estimated_k);
+		assert(impl != NULL);
+	}
 	if (impl == NULL) {
 		printf("make_pi: unknon algorithm %s\n", algorithm);
 		printf("make_pi: supported algorithms:\n");
 		printf("                ramananujan_1910\n");
+		printf("                ramananujan_1910_opt\n");
 		exit(3);
 	}
 
@@ -84,7 +90,7 @@ void make_pi(long digits, const char *algorithm)
 	 * open results file right away, we don't want to compute for hour only to find out that
 	 * this fails.
 	 */
-	snprintf(filename, sizeof (filename), "FPI_%ld.txt", digits);
+	snprintf(filename, sizeof (filename), "FPI_%ld_%s.txt", digits, algorithm);
 	fd = fopen(filename, "w");
 	assert(fd != NULL);
 
