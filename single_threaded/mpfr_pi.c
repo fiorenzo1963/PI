@@ -49,11 +49,11 @@ void writeout_pi(FILE *fd, const char *pi_string)
 	assert(i == sz);
 }
 
-void make_pi(long digits)
+void make_pi(long digits, const char *algorithm)
 {
 	FILE *fd;
 	long last_k, estimated_k;
-	struct mpfr_pi_impl *impl;
+	struct mpfr_pi_impl *impl = NULL;
 	mpfr_t *pi_value;
 	char *pi_value_s;
 	long pi_value_digits;
@@ -67,6 +67,20 @@ void make_pi(long digits)
 	char filename[128];
 
 	/*
+	 * only implementation available for now
+	 */
+	if (strcmp(algorithm, "ramananujan_1910") == 0) {
+		impl = pi_impl_ramananujan_1910_initialize(digits, &estimated_k);
+		assert(impl != NULL);
+	}
+	if (impl == NULL) {
+		printf("make_pi: unknon algorithm %s\n", algorithm);
+		printf("make_pi: supported algorithms:\n");
+		printf("                ramananujan_1910\n");
+		exit(3);
+	}
+
+	/*
 	 * open results file right away, we don't want to compute for hour only to find out that
 	 * this fails.
 	 */
@@ -74,11 +88,6 @@ void make_pi(long digits)
 	fd = fopen(filename, "w");
 	assert(fd != NULL);
 
-	/*
-	 * only implementation available for now
-	 */
-	impl = pi_impl_ramananujan_1910_initialize(digits, &estimated_k);
-	assert(impl != NULL);
 	printf("make_pi: algorithm: %s\n", (*impl->f_impl_get_name)());
 
 	time0 = gettimestamp_nsecs();
@@ -97,7 +106,7 @@ void make_pi(long digits)
 		long curr_k, curr_digits;
 		int ret = (*impl->f_pi_compute_next_term)(impl, &curr_k, &curr_digits);
 
-		printf("ret=%d, curr_k=%ld, digits_out=%ld\n", ret, curr_k, curr_digits);
+		// printf("ret=%d, curr_k=%ld, digits_out=%ld\n", ret, curr_k, curr_digits);
 
 		tss4 = gettimestamp_nsecs();
 		if (ts_secs_portion(tss4 - tss3) >= 10) {
@@ -120,7 +129,7 @@ void make_pi(long digits)
 	tss4 = gettimestamp_nsecs();
 	ts_to_date_str(datebuf, sizeof (datebuf), gettimestamp_nsecs());
 	ts_to_offset_str(offsetbuf, sizeof (offsetbuf), tss4 - time0);
-	printf("%s: %s: k = %ld, digits = %ld\n", datebuf, offsetbuf, last_k, pi_value_digits);
+	printf("%s: %s: k = %ld, estimated_k = %ld, digits = %ld\n", datebuf, offsetbuf, last_k, estimated_k, pi_value_digits);
 	tss3 = tss4;
 
 	time1 = gettimestamp_nsecs();
@@ -163,10 +172,12 @@ int main(int argc, char **argv)
 	printf("approximate decimals for CFG_MPFR_PREC = %ld (upper bound)\n", (long)((float)CFG_MPFR_PREC / 3.5));
 	printf("\n");
 
-	if (argc != 2)
-		digits = 100;
-	else
-		digits = strtoul(argv[1], NULL, 0);
+	if (argc != 3) {
+		printf("mpfr_pi: usage: mpfr_pi digits algorithm\n");
+		exit(1);
+	}
+
+	digits = strtoul(argv[1], NULL, 0);
 	if (digits <= 0) {
 		printf("invalid %ld parameter for digits\n", digits);
 		exit(1);
@@ -176,9 +187,9 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
-	printf("calculating pi to %ld digits\n", digits);
+	printf("calculating pi to %ld digits using %s algorithm\n", digits, argv[2]);
 
-	make_pi(digits);
+	make_pi(digits, argv[2]);
 
 	return 0;
 }

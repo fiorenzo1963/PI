@@ -265,7 +265,7 @@ mpfr_t *pi_impl_ramananujan_1910_get_value(struct mpfr_pi_impl *impl, long *digi
 
 	/* curr_k is the next iteration, so use (curr_k - 1) */
 	ret = ((__impl->curr_k - 1) >= __impl->max_k) ? 1 : 0;
-	printf("pi_impl_ramananujan_1910_get_value: ret=%d, curr_k-1=%ld, max_k=%ld\n", ret, (__impl->curr_k - 1),__impl->max_k);
+	// printf("pi_impl_ramananujan_1910_get_value: ret=%d, curr_k-1=%ld, max_k=%ld\n", ret, (__impl->curr_k - 1),__impl->max_k);
 	if (ret == 0) {
 		*digits_out = 0L;
 		return NULL;
