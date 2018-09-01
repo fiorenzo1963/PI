@@ -40,7 +40,7 @@ struct mpfr_pi_impl {
 	/*
 	 * return name of the implementation.
 	 */
-	const char * (*f_impl_name)(void);
+	const char * (*f_impl_get_name)(void);
 	/*
 	 * initialize an implementation and return its struct
 	 * the init function will add extra state variables to this struct, so do not make any
@@ -69,7 +69,7 @@ struct mpfr_pi_impl {
 	 * if called after f_pi_computer_term returns 1, it's guaranteed to have at least
 	 * the desired number of digits of precision.
 	 */
-	 mpfr_t * (*f_pi_get_value)(struct mpfr_pi_impl *impl);
+	 mpfr_t * (*f_pi_get_value)(struct mpfr_pi_impl *impl, long *digits_out);
 };
 
 #endif
