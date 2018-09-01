@@ -3,3 +3,4 @@ mpfr_pi
 *.out
 core
 *.o
+FPI_*.txt
