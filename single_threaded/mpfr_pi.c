@@ -119,7 +119,7 @@ void make_pi(long digits, const char *algorithm)
 		if (ts_secs_portion(tss4 - tss3) >= 10) {
 			ts_to_date_str(datebuf, sizeof (datebuf), gettimestamp_nsecs());
 			ts_to_offset_str(offsetbuf, sizeof (offsetbuf), tss4 - time0);
-			printf("%s: %s: k = %lu, k_delta = %lu, max_u = %lu\n", datebuf, offsetbuf, curr_k, (curr_k - last_k), max_k);
+			printf("%s: %s: k = %lu, k_delta = %lu, max_k = %lu\n", datebuf, offsetbuf, curr_k, (curr_k - last_k), max_k);
 			tss3 = tss4;
 			last_k = curr_k;
 		}

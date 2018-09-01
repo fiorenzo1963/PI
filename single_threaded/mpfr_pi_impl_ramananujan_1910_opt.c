@@ -69,10 +69,13 @@
  *
  * as
  *
- * TERM(k) = [ (4 * k)! * (1103 + 26390 * k) ] /      # dividend
- *           [ (FACT(k) ^ 4) * (396 ^ (4 * k)) ]      # divisor
+ * TERM(k) = [ (4k)! * (1103 + 26390 * k) ] /         # dividend
+ *           [ (FACT(k) ^ 4) * (396 ^ (4k)) ]         # divisor
  *                                                    # 396 = 99 * 4
  * where
+ *
+ * next(k) = k+1
+ * next(4k) = 4k+4
  *
  * FACT(k == 0): 1                                                   
  * FACT(k != 0): FACT(k - 1) * k
@@ -81,23 +84,26 @@
  *
  * similarly, rewrite
  *
- * TERM(k) = [ (4 * k)! * (1103 + 26390 * k) ] /      # dividend
- *           [ (FACT(k) ^ 4) * (396 ^ (4 * k)) ]      # divisor
+ * TERM(k) = [ (4k)! * (1103 + 26390 * k) ] /         # dividend
+ *           [ (FACT(k) ^ 4) * (396 ^ (4k)) ]         # divisor
  *                                                    # 396 = 99 * 4
  *
  * as
  *
- * TERM(k) = [ FACT4(k) * (1103 + 26390 * k) ] /      # dividend
- *           [ (FACT(k) ^ 4) * (396 ^ (4 * k)) ]      # divisor
+ * TERM(k) = [ FACT4(4k) * (1103 + 26390 * k) ] /     # dividend
+ *           [ (FACT(k) ^ 4) * (396 ^ (4k)) ]         # divisor
  *                                                    # 396 = 99 * 4
  *
  * where
  *
+ * next(k) = k+1
+ * next(4k) = 4k+4
+ *
  * FACT(k == 0): 1                                                   
  * FACT(k != 0): FACT(k - 1) * k
  *
- * FACT4(4*k == 0): 1
- * FACT4(4*k != 0): FACT(4*(k-1)) * k * (k-1) * (k-2) * (k-3)
+ * FACT4(4k == 0): 1
+ * FACT4(4k != 0): FACT(4k-4)) * 4k * (4k-1) * (4k-2) * (4k-3)
  *
  */
 
@@ -125,6 +131,7 @@ struct __mpfr_pi_impl {
 	 * temp variables reused at each iteration
 	 */
 	mpfr_t curr_fact_k;
+	mpfr_t curr_fact_4k;
 	mpfr_t term_dividend;
 	mpfr_t term_divisor;
 	mpfr_t term;
@@ -169,6 +176,7 @@ struct mpfr_pi_impl *pi_impl_ramananujan_1910_opt_initialize(const long digits, 
 	printf("pi_impl_ramananujan_1910_opt_initialize: max_k = %lu\n", __impl->max_k);
 	/* various state variables needed */
 	mpfr_init2(__impl->curr_fact_k, CFG_MPFR_PREC);
+	mpfr_init2(__impl->curr_fact_4k, CFG_MPFR_PREC);
 	mpfr_init2(__impl->term_dividend, CFG_MPFR_PREC);
 	mpfr_init2(__impl->term_divisor, CFG_MPFR_PREC);
 	mpfr_init2(__impl->term, CFG_MPFR_PREC);
@@ -194,6 +202,8 @@ struct mpfr_pi_impl *pi_impl_ramananujan_1910_opt_initialize(const long digits, 
 
 	/* set FACT(0) */
 	mpfr_set_ui(__impl->curr_fact_k, 1, CFG_MPFR_RND);
+	/* set FACT4(0) */
+	mpfr_set_ui(__impl->curr_fact_4k, 1, CFG_MPFR_RND);
 
 	*out_max_k = __impl->max_k;
 	return (struct mpfr_pi_impl *)__impl;
@@ -204,6 +214,7 @@ static void pi_impl_ramananujan_1910_opt_deinitialize(struct mpfr_pi_impl *impl)
 	struct __mpfr_pi_impl *__impl = (struct __mpfr_pi_impl *)impl;
 
 	mpfr_clear(__impl->curr_fact_k);
+	mpfr_clear(__impl->curr_fact_4k);
 	mpfr_clear(__impl->term_dividend);
 	mpfr_clear(__impl->term_divisor);
 	mpfr_clear(__impl->term);
@@ -224,17 +235,16 @@ static int pi_impl_ramananujan_1910_opt_compute_next_term(struct mpfr_pi_impl *i
 	/*
 	 * calculate dividend
 	 *
-	 * [ (4 * k)! * (1103 + 26390 * k) ]
+	 * [ FACT4(4k) * (1103 + 26390 * k) ]
 	 *
 	 */
 
-	mpfr_fac_ui(__impl->term_dividend, _4k, CFG_MPFR_RND);
-	/* term_dividend now has (4*k)! */
 	mpfr_set_ui(__impl->t0, 26390, CFG_MPFR_RND);
 	mpfr_mul_ui(__impl->t0, __impl->t0, k, CFG_MPFR_RND);
 	mpfr_add_ui(__impl->t0, __impl->t0, 1103, CFG_MPFR_RND);
 	/* t0 has (1103 + 26390 * k) */
-	mpfr_mul(__impl->term_dividend, __impl->term_dividend, __impl->t0, CFG_MPFR_RND);
+	mpfr_mul(__impl->term_dividend, __impl->curr_fact_4k, __impl->t0, CFG_MPFR_RND);
+	/* term_dividend has 4k! * (1103 + 26390 * k) */
 	/* term_dividend calculated */
 	//printf("make_pi: term_dividend(%d) = ", k);
 	//mpfr_out_str(stdout, 10, 0, term_dividend, CFG_MPFR_RND);
@@ -300,6 +310,14 @@ static int pi_impl_ramananujan_1910_opt_compute_next_term(struct mpfr_pi_impl *i
 	 * 		FACT(k) = FACT(k - 1) * k
 	 */
 	mpfr_mul_ui(__impl->curr_fact_k, __impl->curr_fact_k, __impl->curr_k, CFG_MPFR_RND);
+	/*
+	 * compute FACT4(k) as:
+	 *              FACT4(4k) = FACT(4k - 4)) * 4k * (4k - 1) * (4k - 2) * (4k - 3)
+	 */
+	mpfr_mul_ui(__impl->curr_fact_4k, __impl->curr_fact_4k, __impl->curr_4k, CFG_MPFR_RND);
+	mpfr_mul_ui(__impl->curr_fact_4k, __impl->curr_fact_4k, (__impl->curr_4k - 1), CFG_MPFR_RND);
+	mpfr_mul_ui(__impl->curr_fact_4k, __impl->curr_fact_4k, (__impl->curr_4k - 2), CFG_MPFR_RND);
+	mpfr_mul_ui(__impl->curr_fact_4k, __impl->curr_fact_4k, (__impl->curr_4k - 3), CFG_MPFR_RND);
 
 	return ret;
 }
