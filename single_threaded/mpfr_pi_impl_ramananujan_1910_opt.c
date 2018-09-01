@@ -6,6 +6,7 @@
 #include <inttypes.h>
 #include <assert.h>
 #include <mpfr.h>
+#include <limits.h>
 
 #include "stringify.h"
 #include "subr.h"
@@ -58,6 +59,8 @@
  *      factorial(0) = 1
  *      factorial(k) = factorial(k - 1) * k
  *      
+ * =================================================================
+ *
  * thus, rewrite
  *
  * TERM(k) = [ (4 * k)! * (1103 + 26390 * k) ] /      # dividend
@@ -74,6 +77,28 @@
  * FACT(k == 0): 1                                                   
  * FACT(k != 0): FACT(k - 1) * k
  *
+ * =================================================================
+ *
+ * similarly, rewrite
+ *
+ * TERM(k) = [ (4 * k)! * (1103 + 26390 * k) ] /      # dividend
+ *           [ (FACT(k) ^ 4) * (396 ^ (4 * k)) ]      # divisor
+ *                                                    # 396 = 99 * 4
+ *
+ * as
+ *
+ * TERM(k) = [ FACT4(k) * (1103 + 26390 * k) ] /      # dividend
+ *           [ (FACT(k) ^ 4) * (396 ^ (4 * k)) ]      # divisor
+ *                                                    # 396 = 99 * 4
+ *
+ * where
+ *
+ * FACT(k == 0): 1                                                   
+ * FACT(k != 0): FACT(k - 1) * k
+ *
+ * FACT4(4*k == 0): 1
+ * FACT4(4*k != 0): FACT(4*(k-1)) * k * (k-1) * (k-2) * (k-3)
+ *
  */
 
 static const char *pi_impl_ramananujan_1910_opt_get_name(void)
@@ -82,7 +107,7 @@ static const char *pi_impl_ramananujan_1910_opt_get_name(void)
 }
 
 static void pi_impl_ramananujan_1910_opt_deinitialize(struct mpfr_pi_impl *impl);
-static int pi_impl_ramananujan_1910_opt_compute_next_term(struct mpfr_pi_impl *impl, long *ki_out, long *digits_out);
+static int pi_impl_ramananujan_1910_opt_compute_next_term(struct mpfr_pi_impl *impl, unsigned long *out_k, long *digits_out);
 static mpfr_t *pi_impl_ramananujan_1910_opt_get_value(struct mpfr_pi_impl *impl, long *digits_out);
 
 /* actual implementation struct for this algorithm */
@@ -90,10 +115,11 @@ struct __mpfr_pi_impl {
 	/* generic part */
 	struct mpfr_pi_impl g;
 	/* private part */
-	long curr_k; /* current iteration -- compute Ki must be called with this iteration number. compute Ki will increment k */
+	unsigned long curr_k; /* current k */
+	unsigned long curr_4k; /* current 4k */
 	long curr_digits;
 	long desired_digits; /* desired digits */
-	long max_k; /* max_k to reach desired digits */
+	unsigned long max_k; /* max_k to reach desired digits */
 	/* various state variables needed */
 	/*
 	 * temp variables reused at each iteration
@@ -111,12 +137,15 @@ struct __mpfr_pi_impl {
 	mpfr_t pi;
 };
 
-#define DIGITS_TO_K(d)	(((d) / 8) + 1)		/* estimate number of iterations to get "d" digits */
+#define DIGITS_TO_K(d)	(((d) / 8) + 1)		/* number of iterations to get "d" digits */
 #define SLACK_K		DIGITS_TO_K(8)		/* slack factor added to the above just to be sure */
 /* arg reused, must pass l-value */
 #define K_TO_DIGITS(k)	((k) >= SLACK_K ? ((k) * 8) - SLACK_K : 0L)
 
-struct mpfr_pi_impl *pi_impl_ramananujan_1910_opt_initialize(const long digits, long *out_iterations)
+#define __SAFE_LONG_MAX		(LONG_MAX / 2L)
+#define __SAFE_ULONG_MAX	(ULONG_MAX / 2UL)
+
+struct mpfr_pi_impl *pi_impl_ramananujan_1910_opt_initialize(const long digits, unsigned long *out_max_k)
 {
 	struct __mpfr_pi_impl *__impl = malloc(sizeof (struct __mpfr_pi_impl));
 	assert(__impl != NULL);
@@ -126,13 +155,18 @@ struct mpfr_pi_impl *pi_impl_ramananujan_1910_opt_initialize(const long digits, 
 	__impl->g.f_pi_compute_next_term = pi_impl_ramananujan_1910_opt_compute_next_term;
 	__impl->g.f_pi_get_value = pi_impl_ramananujan_1910_opt_get_value;
 
-	__impl->curr_k = 0L;
+	__impl->curr_k = 0UL;
+	__impl->curr_4k = 0UL;
 	__impl->curr_digits = 0L;
 	__impl->desired_digits = digits;
 	printf("pi_impl_ramananujan_1910_opt_initialize: desired digits = %ld\n", __impl->desired_digits);
 	/* iterations needed */
 	__impl->max_k = DIGITS_TO_K(digits) + SLACK_K;
-	printf("pi_impl_ramananujan_1910_opt_initialize: estimated iterations = %ld\n", __impl->max_k);
+	assert(digits < __SAFE_LONG_MAX);
+	assert(__impl->max_k < __SAFE_ULONG_MAX);
+	/* algorithm computes 4k directly with unsigned longs */
+	assert(__impl->max_k < __SAFE_ULONG_MAX / 4);
+	printf("pi_impl_ramananujan_1910_opt_initialize: max_k = %lu\n", __impl->max_k);
 	/* various state variables needed */
 	mpfr_init2(__impl->curr_fact_k, CFG_MPFR_PREC);
 	mpfr_init2(__impl->term_dividend, CFG_MPFR_PREC);
@@ -161,7 +195,7 @@ struct mpfr_pi_impl *pi_impl_ramananujan_1910_opt_initialize(const long digits, 
 	/* set FACT(0) */
 	mpfr_set_ui(__impl->curr_fact_k, 1, CFG_MPFR_RND);
 
-	*out_iterations = __impl->max_k;
+	*out_max_k = __impl->max_k;
 	return (struct mpfr_pi_impl *)__impl;
 }
 
@@ -180,10 +214,11 @@ static void pi_impl_ramananujan_1910_opt_deinitialize(struct mpfr_pi_impl *impl)
 	free(__impl);
 }
 
-static int pi_impl_ramananujan_1910_opt_compute_next_term(struct mpfr_pi_impl *impl, long *ki_out, long *digits_out)
+static int pi_impl_ramananujan_1910_opt_compute_next_term(struct mpfr_pi_impl *impl, unsigned long *out_k, long *digits_out)
 {
 	struct __mpfr_pi_impl *__impl = (struct __mpfr_pi_impl *)impl;
-	long k = __impl->curr_k;
+	const unsigned long k = __impl->curr_k;
+	const unsigned long _4k = __impl->curr_4k;
 	int ret;
 
 	/*
@@ -193,7 +228,7 @@ static int pi_impl_ramananujan_1910_opt_compute_next_term(struct mpfr_pi_impl *i
 	 *
 	 */
 
-	mpfr_fac_ui(__impl->term_dividend, (4 * k), CFG_MPFR_RND);
+	mpfr_fac_ui(__impl->term_dividend, _4k, CFG_MPFR_RND);
 	/* term_dividend now has (4*k)! */
 	mpfr_set_ui(__impl->t0, 26390, CFG_MPFR_RND);
 	mpfr_mul_ui(__impl->t0, __impl->t0, k, CFG_MPFR_RND);
@@ -214,7 +249,7 @@ static int pi_impl_ramananujan_1910_opt_compute_next_term(struct mpfr_pi_impl *i
 	mpfr_pow_ui(__impl->term_divisor, __impl->curr_fact_k, 4, CFG_MPFR_RND);
 	/* term_divisor now has ((k!) ^ 4) */
 	mpfr_set_ui(__impl->t0, 396, CFG_MPFR_RND);
-	mpfr_pow_ui(__impl->t0, __impl->t0, (4 * k), CFG_MPFR_RND);
+	mpfr_pow_ui(__impl->t0, __impl->t0, _4k, CFG_MPFR_RND);
 	/* t0 has (396 ^ (4 * k)) */
 	mpfr_mul(__impl->term_divisor, __impl->term_divisor, __impl->t0, CFG_MPFR_RND);
 	/* term_divisor calculated */
@@ -244,14 +279,26 @@ static int pi_impl_ramananujan_1910_opt_compute_next_term(struct mpfr_pi_impl *i
 	/*
 	 * calculate out values and retval.
 	 */
-	*ki_out = __impl->curr_k;
+	*out_k = __impl->curr_k;
 	*digits_out = K_TO_DIGITS(__impl->curr_k);
 	ret = (__impl->curr_k >= __impl->max_k) ? 1 : 0;
+
+
 	/*
 	 * setup for next iteration.
 	 */
-	__impl->curr_k++;
-	/* compute FACT(k) as FACT(k) = FACT(k-1) * k */
+	/*
+	 * next K
+	 */
+	__impl->curr_k += 1;
+	/*
+	 * next 4*K
+	 */
+	__impl->curr_4k += 4;
+	/*
+	 * compute FACT(k) as:
+	 * 		FACT(k) = FACT(k - 1) * k
+	 */
 	mpfr_mul_ui(__impl->curr_fact_k, __impl->curr_fact_k, __impl->curr_k, CFG_MPFR_RND);
 
 	return ret;
@@ -262,8 +309,12 @@ static mpfr_t *pi_impl_ramananujan_1910_opt_get_value(struct mpfr_pi_impl *impl,
 	struct __mpfr_pi_impl *__impl = (struct __mpfr_pi_impl *)impl;
 	int ret;
 
+	/*
+	 * use (curr_k - 1), as curr_k has not been computed yet
+	 */
+
 	// printf("pi_impl_ramananujan_1910_opt_get_value: ret=%d, curr_k-1=%ld, max_k=%ld\n", ret, (__impl->curr_k - 1),__impl->max_k);
-	if (K_TO_DIGITS(__impl->curr_k - 1) == 0) {
+	if (__impl->curr_k == 0UL || K_TO_DIGITS(__impl->curr_k - 1) == 0) {
 		*digits_out = 0L;
 		return NULL;
 	}

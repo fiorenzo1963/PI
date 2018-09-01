@@ -53,7 +53,7 @@ void writeout_pi(FILE *fd, const char *pi_string)
 void make_pi(long digits, const char *algorithm)
 {
 	FILE *fd;
-	long last_k, estimated_k;
+	unsigned long last_k, max_k;
 	struct mpfr_pi_impl *impl = NULL;
 	mpfr_t *pi_value;
 	char *pi_value_s;
@@ -71,11 +71,11 @@ void make_pi(long digits, const char *algorithm)
 	 * only implementation available for now
 	 */
 	if (strcmp(algorithm, "ramananujan_1910") == 0) {
-		impl = pi_impl_ramananujan_1910_initialize(digits, &estimated_k);
+		impl = pi_impl_ramananujan_1910_initialize(digits, &max_k);
 		assert(impl != NULL);
 	}
 	if (strcmp(algorithm, "ramananujan_1910_opt") == 0) {
-		impl = pi_impl_ramananujan_1910_opt_initialize(digits, &estimated_k);
+		impl = pi_impl_ramananujan_1910_opt_initialize(digits, &max_k);
 		assert(impl != NULL);
 	}
 	if (impl == NULL) {
@@ -102,23 +102,24 @@ void make_pi(long digits, const char *algorithm)
 	ts_to_date_str(datebuf, sizeof (datebuf), time0);
 	ts_to_offset_str(offsetbuf, sizeof (offsetbuf), time0 - time0);
 
-	printf("%s: %s: make_pi, digits = %ld, estimated k = %ld\n", datebuf, offsetbuf, digits, estimated_k);
+	printf("%s: %s: make_pi, digits = %ld, max_k = %lu\n", datebuf, offsetbuf, digits, max_k);
 
 	/*
 	 * the extra iterations are not technically necessary, but just to be safe .....
 	 */
 	for (;;) {
 
-		long curr_k, curr_digits;
+		unsigned long curr_k;
+		long curr_digits;
 		int ret = (*impl->f_pi_compute_next_term)(impl, &curr_k, &curr_digits);
 
-		// printf("ret=%d, curr_k=%ld, digits_out=%ld\n", ret, curr_k, curr_digits);
+		// printf("ret=%d, curr_k=%lu, digits_out=%ld\n", ret, curr_k, curr_digits);
 
 		tss4 = gettimestamp_nsecs();
 		if (ts_secs_portion(tss4 - tss3) >= 10) {
 			ts_to_date_str(datebuf, sizeof (datebuf), gettimestamp_nsecs());
 			ts_to_offset_str(offsetbuf, sizeof (offsetbuf), tss4 - time0);
-			printf("%s: %s: k = %ld, k_delta = %ld, estimated_k = %ld\n", datebuf, offsetbuf, curr_k, (curr_k - last_k), estimated_k);
+			printf("%s: %s: k = %lu, k_delta = %lu, max_u = %lu\n", datebuf, offsetbuf, curr_k, (curr_k - last_k), max_k);
 			tss3 = tss4;
 			last_k = curr_k;
 		}
@@ -135,7 +136,7 @@ void make_pi(long digits, const char *algorithm)
 	tss4 = gettimestamp_nsecs();
 	ts_to_date_str(datebuf, sizeof (datebuf), gettimestamp_nsecs());
 	ts_to_offset_str(offsetbuf, sizeof (offsetbuf), tss4 - time0);
-	printf("%s: %s: k = %ld, estimated_k = %ld, digits = %ld\n", datebuf, offsetbuf, last_k, estimated_k, pi_value_digits);
+	printf("%s: %s: k = %lu, max_k = %lu, digits = %ld\n", datebuf, offsetbuf, last_k, max_k, pi_value_digits);
 	tss3 = tss4;
 
 	time1 = gettimestamp_nsecs();

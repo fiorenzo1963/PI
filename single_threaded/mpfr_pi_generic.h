@@ -46,10 +46,10 @@ struct mpfr_pi_impl {
 	 * the init function will add extra state variables to this struct, so do not make any
 	 * size assumptions on it.
 	 * sets iteration K value to 0 and other implementation specific constants
-	 * set out_iterations to rhe number of estimated iterations, if known, otherwise 0.
+	 * set out_max_k to rhe number of iterations (i.e., max K value), if known, otherwise 0.
 	 * if the implementation optimizes this calculation and keeps intermediate state, initialize this state.
 	 */
-	struct mpfr_pi_impl * (*f_initialize)(const long digits, long *out_iterations);
+	struct mpfr_pi_impl * (*f_initialize)(const long digits, unsigned long *out_max_k);
 	/*
 	 * free an implementation struct.
 	 */
@@ -59,10 +59,10 @@ struct mpfr_pi_impl {
 	 * the implementation is free to optimize this calculation and keep intermediate state.
 	 * return 0 if more iterations are needed, 1 if the desired precision has been reached.
 	 * sets computed k in k_out.
-	 * set digits_out if the digits are known, otherwise sets to 0
+	 * set digits_out if the digits are known, otherwise sets to 0.
 	 * (may set digits_out every now and then, so it's not guaranteed to be updated at every iteration).
 	 */
-	int (*f_pi_compute_next_term)(struct mpfr_pi_impl *impl, long *ki_out, long *digits_out);
+	int (*f_pi_compute_next_term)(struct mpfr_pi_impl *impl, unsigned long *k_out, long *digits_out);
 	/*
 	 * this can be called anytime, return NULL if estimated digits is still 0.
 	 * it computes PI based on the current values.
