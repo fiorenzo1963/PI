@@ -76,7 +76,7 @@ struct mpfr_pi_impl {
 	 */
 	int (*f_pi_compute_next_term)(struct mpfr_pi_impl *impl, long *ki_out, long *digits_out);
 	/*
-	 * this can be called anytime, return NULL if k is still 0.
+	 * this can be called anytime, return NULL if estimated digits is still 0.
 	 * it computes PI based on the current values.
 	 * if called after f_pi_computer_term returns 1, it's guaranteed to have at least
 	 * the desired number of digits of precision.
@@ -263,10 +263,8 @@ mpfr_t *pi_impl_ramananujan_1910_get_value(struct mpfr_pi_impl *impl, long *digi
 	struct __mpfr_pi_impl *__impl = (struct __mpfr_pi_impl *)impl;
 	int ret;
 
-	/* curr_k is the next iteration, so use (curr_k - 1) */
-	ret = ((__impl->curr_k - 1) >= __impl->max_k) ? 1 : 0;
 	// printf("pi_impl_ramananujan_1910_get_value: ret=%d, curr_k-1=%ld, max_k=%ld\n", ret, (__impl->curr_k - 1),__impl->max_k);
-	if (ret == 0) {
+	if (K_TO_DIGITS(__impl->curr_k - 1) == 0) {
 		*digits_out = 0L;
 		return NULL;
 	}

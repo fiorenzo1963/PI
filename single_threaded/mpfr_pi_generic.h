@@ -64,7 +64,7 @@ struct mpfr_pi_impl {
 	 */
 	int (*f_pi_compute_next_term)(struct mpfr_pi_impl *impl, long *ki_out, long *digits_out);
 	/*
-	 * this can be called anytime, return NULL if k is still 0.
+	 * this can be called anytime, return NULL if estimated digits is still 0.
 	 * it computes PI based on the current values.
 	 * if called after f_pi_computer_term returns 1, it's guaranteed to have at least
 	 * the desired number of digits of precision.
