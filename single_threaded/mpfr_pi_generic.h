@@ -19,15 +19,15 @@
 /* derived from above */
 #define CFG_MPFR_PREC_STR	__stringify(CFG_MPFR_PREC)
 
-static char *mpfr_t_to_str(mpfr_t *value, int digits)
+static char *mpfr_t_to_str(mpfr_t *value, long chars)
 {
 	char *buf;
 	assert(value != NULL);
-	assert(digits > 0);
-	// printf("get_float_to_str(prec=%d, digits=%d)\n", CFG_MPFR_PREC, digits);
-	buf = malloc(digits + 10);
+	assert(chars > 0);
+	// printf("get_float_to_str(prec=%d, digits=%d)\n", CFG_MPFR_PREC, chars);
+	buf = malloc(chars + 100);
 	assert(buf != NULL);
-	mpfr_snprintf(buf, digits, "%." CFG_MPFR_PREC_STR "R*f", CFG_MPFR_RND, *value);
+	mpfr_snprintf(buf, chars, "%." CFG_MPFR_PREC_STR "R*f", CFG_MPFR_RND, *value);
 	return buf;
 }
 

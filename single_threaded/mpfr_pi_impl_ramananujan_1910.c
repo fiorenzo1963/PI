@@ -121,7 +121,7 @@ struct __mpfr_pi_impl {
 };
 
 #define DIGITS_TO_K(d)	(((d) / 8) + 1)		/* estimate number of iterations to get "d" digits */
-#define SLACK_K		DIGITS_TO_K(8 * 8)	/* slack factor added to the above just to be sure */
+#define SLACK_K		DIGITS_TO_K(8)		/* slack factor added to the above just to be sure */
 /* arg reused, must pass l-value */
 #define K_TO_DIGITS(k)	((k) >= SLACK_K ? ((k) * 8) - SLACK_K : 0L)
 
@@ -138,10 +138,10 @@ struct mpfr_pi_impl *pi_impl_ramananujan_1910_initialize(const long digits, long
 	__impl->curr_k = 0L;
 	__impl->curr_digits = 0L;
 	__impl->desired_digits = digits;
-	// printf("make_pi: desired digits = %ld\n", __impl->desired_digits);
+	printf("pi_impl_ramananujan_1910_initialize: desired digits = %ld\n", __impl->desired_digits);
 	/* iterations needed */
 	__impl->max_k = DIGITS_TO_K(digits) + SLACK_K;
-	// printf("make_pi: estimated iterations = %ld\n", __impl->max_k);
+	printf("pi_impl_ramananujan_1910_initialize: estimated iterations = %ld\n", __impl->max_k);
 	/* various state variables needed */
 	mpfr_init2(__impl->term_dividend, CFG_MPFR_PREC);
 	mpfr_init2(__impl->term_divisor, CFG_MPFR_PREC);
@@ -261,9 +261,12 @@ int pi_impl_ramananujan_1910_compute_next_term(struct mpfr_pi_impl *impl, long *
 mpfr_t *pi_impl_ramananujan_1910_get_value(struct mpfr_pi_impl *impl, long *digits_out)
 {
 	struct __mpfr_pi_impl *__impl = (struct __mpfr_pi_impl *)impl;
+	int ret;
 
 	/* curr_k is the next iteration, so use (curr_k - 1) */
-	if (K_TO_DIGITS(__impl->curr_k - 1)) {
+	ret = ((__impl->curr_k - 1) >= __impl->max_k) ? 1 : 0;
+	printf("pi_impl_ramananujan_1910_get_value: ret=%d, curr_k-1=%ld, max_k=%ld\n", ret, (__impl->curr_k - 1),__impl->max_k);
+	if (ret == 0) {
 		*digits_out = 0L;
 		return NULL;
 	}

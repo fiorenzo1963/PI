@@ -2,4 +2,4 @@ mpfr_pi: mpfr_pi.c mpfr_pi_impl_ramananujan_1910.c mpfr_pi_generic.h stringify.h
 	cc -o mpfr_pi mpfr_pi.c mpfr_pi_impl_ramananujan_1910.c subr.c -lmpfr -lgmp
 
 clean:
-	rm -f mpfr_pi *.o core *.log *.out
+	rm -f mpfr_pi *.o core *.log *.out FPI*txt
