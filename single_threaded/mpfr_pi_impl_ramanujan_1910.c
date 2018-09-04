@@ -47,14 +47,14 @@
  *                                                    # 396 = 99 * 4
  */
 
-static const char *pi_impl_ramananujan_1910_get_name(void)
+static const char *pi_impl_ramanujan_1910_get_name(void)
 {
-	return "Ramananujan 1910 Formula";
+	return "Ramanujan 1910 Formula";
 }
 
-static void pi_impl_ramananujan_1910_deinitialize(struct mpfr_pi_impl *impl);
-static int pi_impl_ramananujan_1910_compute_next_term(struct mpfr_pi_impl *impl, unsigned long *out_k, long *digits_out);
-static mpfr_t *pi_impl_ramananujan_1910_get_value(struct mpfr_pi_impl *impl, long *digits_out);
+static void pi_impl_ramanujan_1910_deinitialize(struct mpfr_pi_impl *impl);
+static int pi_impl_ramanujan_1910_compute_next_term(struct mpfr_pi_impl *impl, unsigned long *out_k, long *digits_out);
+static mpfr_t *pi_impl_ramanujan_1910_get_value(struct mpfr_pi_impl *impl, long *digits_out);
 
 /* actual implementation struct for this algorithm */
 struct __mpfr_pi_impl {
@@ -89,27 +89,27 @@ struct __mpfr_pi_impl {
 #define __SAFE_LONG_MAX		(LONG_MAX / 2L)
 #define __SAFE_ULONG_MAX	(ULONG_MAX / 2UL)
 
-struct mpfr_pi_impl *pi_impl_ramananujan_1910_initialize(const long digits, unsigned long *out_max_k)
+struct mpfr_pi_impl *pi_impl_ramanujan_1910_initialize(const long digits, unsigned long *out_max_k)
 {
 	struct __mpfr_pi_impl *__impl = malloc(sizeof (struct __mpfr_pi_impl));
 	assert(__impl != NULL);
-	__impl->g.f_impl_get_name = pi_impl_ramananujan_1910_get_name;
-	__impl->g.f_initialize = pi_impl_ramananujan_1910_initialize;
-	__impl->g.f_deinitialize = pi_impl_ramananujan_1910_deinitialize;
-	__impl->g.f_pi_compute_next_term = pi_impl_ramananujan_1910_compute_next_term;
-	__impl->g.f_pi_get_value = pi_impl_ramananujan_1910_get_value;
+	__impl->g.f_impl_get_name = pi_impl_ramanujan_1910_get_name;
+	__impl->g.f_initialize = pi_impl_ramanujan_1910_initialize;
+	__impl->g.f_deinitialize = pi_impl_ramanujan_1910_deinitialize;
+	__impl->g.f_pi_compute_next_term = pi_impl_ramanujan_1910_compute_next_term;
+	__impl->g.f_pi_get_value = pi_impl_ramanujan_1910_get_value;
 
 	__impl->curr_k = 0UL;
 	__impl->curr_digits = 0L;
 	__impl->desired_digits = digits;
-	printf("pi_impl_ramananujan_1910_initialize: desired digits = %ld\n", __impl->desired_digits);
+	printf("pi_impl_ramanujan_1910_initialize: desired digits = %ld\n", __impl->desired_digits);
 	/* iterations needed */
 	__impl->max_k = DIGITS_TO_K(digits) + SLACK_K;
 	assert(digits < __SAFE_LONG_MAX);
 	assert(__impl->max_k < __SAFE_ULONG_MAX);
 	/* algorithm computes 4k directly with unsigned longs */
 	assert(__impl->max_k < __SAFE_ULONG_MAX / 4);
-	printf("pi_impl_ramananujan_1910_initialize: max_k = %lu\n", __impl->max_k);
+	printf("pi_impl_ramanujan_1910_initialize: max_k = %lu\n", __impl->max_k);
 	/* various state variables needed */
 	mpfr_init2(__impl->term_dividend, CFG_MPFR_PREC);
 	mpfr_init2(__impl->term_divisor, CFG_MPFR_PREC);
@@ -138,7 +138,7 @@ struct mpfr_pi_impl *pi_impl_ramananujan_1910_initialize(const long digits, unsi
 	return (struct mpfr_pi_impl *)__impl;
 }
 
-static void pi_impl_ramananujan_1910_deinitialize(struct mpfr_pi_impl *impl)
+static void pi_impl_ramanujan_1910_deinitialize(struct mpfr_pi_impl *impl)
 {
 	struct __mpfr_pi_impl *__impl = (struct __mpfr_pi_impl *)impl;
 	
@@ -152,7 +152,7 @@ static void pi_impl_ramananujan_1910_deinitialize(struct mpfr_pi_impl *impl)
 	free(__impl);
 }
 
-static int pi_impl_ramananujan_1910_compute_next_term(struct mpfr_pi_impl *impl, unsigned long *out_k, long *digits_out)
+static int pi_impl_ramanujan_1910_compute_next_term(struct mpfr_pi_impl *impl, unsigned long *out_k, long *digits_out)
 {
 	struct __mpfr_pi_impl *__impl = (struct __mpfr_pi_impl *)impl;
 	const unsigned long k = __impl->curr_k;
@@ -226,7 +226,7 @@ static int pi_impl_ramananujan_1910_compute_next_term(struct mpfr_pi_impl *impl,
 	return ret;
 }
 
-static mpfr_t *pi_impl_ramananujan_1910_get_value(struct mpfr_pi_impl *impl, long *digits_out)
+static mpfr_t *pi_impl_ramanujan_1910_get_value(struct mpfr_pi_impl *impl, long *digits_out)
 {
 	struct __mpfr_pi_impl *__impl = (struct __mpfr_pi_impl *)impl;
 	int ret;
@@ -235,7 +235,7 @@ static mpfr_t *pi_impl_ramananujan_1910_get_value(struct mpfr_pi_impl *impl, lon
 	 * use (curr_k - 1) as when we call this, curr_k has not been done yet
 	 */
 
-	// printf("pi_impl_ramananujan_1910_get_value: ret=%d, curr_k-1=%ld, max_k=%ld\n", ret, (__impl->curr_k - 1),__impl->max_k);
+	// printf("pi_impl_ramanujan_1910_get_value: ret=%d, curr_k-1=%ld, max_k=%ld\n", ret, (__impl->curr_k - 1),__impl->max_k);
 	if (__impl->curr_k == 0UL || K_TO_DIGITS(__impl->curr_k - 1) == 0) {
 		*digits_out = 0L;
 		return NULL;

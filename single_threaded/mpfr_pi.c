@@ -30,8 +30,8 @@
 
 #define CHARACTERS_PER_LINE	100
 
-extern struct mpfr_pi_impl *pi_impl_ramananujan_1910_initialize(const long digits, long *out_iterations);
-extern struct mpfr_pi_impl *pi_impl_ramananujan_1910_opt_initialize(const long digits, long *out_iterations);
+extern struct mpfr_pi_impl *pi_impl_ramanujan_1910_initialize(const long digits, long *out_iterations);
+extern struct mpfr_pi_impl *pi_impl_ramanujan_1910_opt_initialize(const long digits, long *out_iterations);
 
 void writeout_pi(FILE *fd, const char *pi_string)
 {
@@ -70,19 +70,19 @@ void make_pi(long digits, const char *algorithm)
 	/*
 	 * only implementation available for now
 	 */
-	if (strcmp(algorithm, "ramananujan_1910") == 0) {
-		impl = pi_impl_ramananujan_1910_initialize(digits, &max_k);
+	if (strcmp(algorithm, "ramanujan_1910") == 0) {
+		impl = pi_impl_ramanujan_1910_initialize(digits, &max_k);
 		assert(impl != NULL);
 	}
-	if (strcmp(algorithm, "ramananujan_1910_opt") == 0) {
-		impl = pi_impl_ramananujan_1910_opt_initialize(digits, &max_k);
+	if (strcmp(algorithm, "ramanujan_1910_opt") == 0) {
+		impl = pi_impl_ramanujan_1910_opt_initialize(digits, &max_k);
 		assert(impl != NULL);
 	}
 	if (impl == NULL) {
 		printf("make_pi: unknon algorithm %s\n", algorithm);
 		printf("make_pi: supported algorithms:\n");
-		printf("                ramananujan_1910\n");
-		printf("                ramananujan_1910_opt\n");
+		printf("                ramanujan_1910\n");
+		printf("                ramanujan_1910_opt\n");
 		exit(3);
 	}
 
