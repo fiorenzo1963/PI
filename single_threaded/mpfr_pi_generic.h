@@ -14,7 +14,7 @@
 #include "stringify.h"
 
 /* config variables, can be changed */
-#define CFG_MPFR_PREC		20000000
+#define CFG_MPFR_PREC		25000000
 #define CFG_MPFR_RND		MPFR_RNDD
 /* derived from above */
 #define CFG_MPFR_PREC_STR	__stringify(CFG_MPFR_PREC)

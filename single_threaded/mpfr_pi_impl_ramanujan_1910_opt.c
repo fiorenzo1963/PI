@@ -96,6 +96,8 @@
  *
  * where
  *
+ * prev(k) = k-1
+ * prev(4k) = 4k-4
  * next(k) = k+1
  * next(4k) = 4k+4
  *
@@ -144,10 +146,10 @@ struct __mpfr_pi_impl {
 	mpfr_t pi;
 };
 
-#define DIGITS_TO_K(d)	(((d) / 8) + 1)		/* number of iterations to get "d" digits */
-#define SLACK_K		DIGITS_TO_K(8)		/* slack factor added to the above just to be sure */
+#define DIGITS_TO_K(d)	(((d) / 8L) + 1L)		/* number of iterations to get "d" digits */
+#define SLACK_K		DIGITS_TO_K(16L)		/* slack factor added to the above just to be sure */
 /* arg reused, must pass l-value */
-#define K_TO_DIGITS(k)	((k) >= SLACK_K ? ((k) * 8) - SLACK_K : 0L)
+#define K_TO_DIGITS(k)	((k) >= SLACK_K ? ((k) * 8L) - SLACK_K : 0L)
 
 #define __SAFE_LONG_MAX		(LONG_MAX / 2L)
 #define __SAFE_ULONG_MAX	(ULONG_MAX / 2UL)
@@ -172,7 +174,7 @@ struct mpfr_pi_impl *pi_impl_ramanujan_1910_opt_initialize(const long digits, un
 	assert(digits < __SAFE_LONG_MAX);
 	assert(__impl->max_k < __SAFE_ULONG_MAX);
 	/* algorithm computes 4k directly with unsigned longs */
-	assert(__impl->max_k < __SAFE_ULONG_MAX / 4);
+	assert(__impl->max_k < __SAFE_ULONG_MAX / 4UL);
 	printf("pi_impl_ramanujan_1910_opt_initialize: max_k = %lu\n", __impl->max_k);
 	/* various state variables needed */
 	mpfr_init2(__impl->curr_fact_k, CFG_MPFR_PREC);
@@ -190,20 +192,20 @@ struct mpfr_pi_impl *pi_impl_ramanujan_1910_opt_initialize(const long digits, un
 	 *                                                    # 9801 = 99^2
 	 */
 	/* calculate cmult constant */
-	mpfr_sqrt_ui(__impl->cmult, 2, CFG_MPFR_RND);
-	mpfr_mul_ui(__impl->cmult, __impl->cmult, 2, CFG_MPFR_RND);
-	mpfr_div_ui(__impl->cmult, __impl->cmult, 9801, CFG_MPFR_RND);
+	mpfr_sqrt_ui(__impl->cmult, 2UL, CFG_MPFR_RND);
+	mpfr_mul_ui(__impl->cmult, __impl->cmult, 2UL, CFG_MPFR_RND);
+	mpfr_div_ui(__impl->cmult, __impl->cmult, 9801UL, CFG_MPFR_RND);
 	// printf("make_pi: cmult = ");
 	// mpfr_out_str(stdout, 10, 0, cmult, CFG_MPFR_RND);
 	// printf("\n");
 
 	/* set term_sum */
-	mpfr_set_ui(__impl->term_sum, 0, CFG_MPFR_RND);
+	mpfr_set_ui(__impl->term_sum, 0UL, CFG_MPFR_RND);
 
 	/* set FACT(0) */
-	mpfr_set_ui(__impl->curr_fact_k, 1, CFG_MPFR_RND);
+	mpfr_set_ui(__impl->curr_fact_k, 1UL, CFG_MPFR_RND);
 	/* set FACT4(0) */
-	mpfr_set_ui(__impl->curr_fact_4k, 1, CFG_MPFR_RND);
+	mpfr_set_ui(__impl->curr_fact_4k, 1UL, CFG_MPFR_RND);
 
 	*out_max_k = __impl->max_k;
 	return (struct mpfr_pi_impl *)__impl;
@@ -239,12 +241,24 @@ static int pi_impl_ramanujan_1910_opt_compute_next_term(struct mpfr_pi_impl *imp
 	 *
 	 */
 
-	mpfr_set_ui(__impl->t0, 26390, CFG_MPFR_RND);
+	/*
+	 * this being 64-bits, we can safely compute the expression with normal arithmetic
+	 *
+	 * (1) mpfr_set_ui(__impl->t0, (1103 + 26390 * k), CFG_MPFR_RND);
+	 *     mpfr_mul(__impl->term_dividend, __impl->curr_fact_4k, __impl->t0, CFG_MPFR_RND);
+	 *
+	 * (2) mpfr_mul_ui(__impl->term_dividend, __impl->curr_fact_4k, (1103 + 26390 * k), CFG_MPFR_RND);
+	 */
+#if 0
+	mpfr_set_ui(__impl->t0, 26390UL, CFG_MPFR_RND);
 	mpfr_mul_ui(__impl->t0, __impl->t0, k, CFG_MPFR_RND);
-	mpfr_add_ui(__impl->t0, __impl->t0, 1103, CFG_MPFR_RND);
+	mpfr_add_ui(__impl->t0, __impl->t0, 1103UL, CFG_MPFR_RND);
 	/* t0 has (1103 + 26390 * k) */
 	mpfr_mul(__impl->term_dividend, __impl->curr_fact_4k, __impl->t0, CFG_MPFR_RND);
+#endif
+	mpfr_mul_ui(__impl->term_dividend, __impl->curr_fact_4k, (1103UL + 26390UL * k), CFG_MPFR_RND);
 	/* term_dividend has 4k! * (1103 + 26390 * k) */
+
 	/* term_dividend calculated */
 	//printf("make_pi: term_dividend(%d) = ", k);
 	//mpfr_out_str(stdout, 10, 0, term_dividend, CFG_MPFR_RND);
@@ -256,13 +270,14 @@ static int pi_impl_ramanujan_1910_opt_compute_next_term(struct mpfr_pi_impl *imp
 	 * [ (FACT(k) ^ 4) * (396 ^ (4 * k)) ]
 	 *
 	 */
-	mpfr_pow_ui(__impl->term_divisor, __impl->curr_fact_k, 4, CFG_MPFR_RND);
+	mpfr_pow_ui(__impl->term_divisor, __impl->curr_fact_k, 4UL, CFG_MPFR_RND);
 	/* term_divisor now has ((k!) ^ 4) */
-	mpfr_set_ui(__impl->t0, 396, CFG_MPFR_RND);
+	mpfr_set_ui(__impl->t0, 396UL, CFG_MPFR_RND);
 	mpfr_pow_ui(__impl->t0, __impl->t0, _4k, CFG_MPFR_RND);
 	/* t0 has (396 ^ (4 * k)) */
 	mpfr_mul(__impl->term_divisor, __impl->term_divisor, __impl->t0, CFG_MPFR_RND);
 	/* term_divisor calculated */
+
 	//printf("make_pi: term_divisor(%d) = ", k);
 	//mpfr_out_str(stdout, 10, 0, term_divisor, CFG_MPFR_RND);
 	//printf("\n");
@@ -315,9 +330,9 @@ static int pi_impl_ramanujan_1910_opt_compute_next_term(struct mpfr_pi_impl *imp
 	 *              FACT4(4k) = FACT(4k - 4)) * 4k * (4k - 1) * (4k - 2) * (4k - 3)
 	 */
 	mpfr_mul_ui(__impl->curr_fact_4k, __impl->curr_fact_4k, __impl->curr_4k, CFG_MPFR_RND);
-	mpfr_mul_ui(__impl->curr_fact_4k, __impl->curr_fact_4k, (__impl->curr_4k - 1), CFG_MPFR_RND);
-	mpfr_mul_ui(__impl->curr_fact_4k, __impl->curr_fact_4k, (__impl->curr_4k - 2), CFG_MPFR_RND);
-	mpfr_mul_ui(__impl->curr_fact_4k, __impl->curr_fact_4k, (__impl->curr_4k - 3), CFG_MPFR_RND);
+	mpfr_mul_ui(__impl->curr_fact_4k, __impl->curr_fact_4k, (__impl->curr_4k - 1UL), CFG_MPFR_RND);
+	mpfr_mul_ui(__impl->curr_fact_4k, __impl->curr_fact_4k, (__impl->curr_4k - 2UL), CFG_MPFR_RND);
+	mpfr_mul_ui(__impl->curr_fact_4k, __impl->curr_fact_4k, (__impl->curr_4k - 3UL), CFG_MPFR_RND);
 
 	return ret;
 }
@@ -352,7 +367,7 @@ static mpfr_t *pi_impl_ramanujan_1910_opt_get_value(struct mpfr_pi_impl *impl, l
 	/*
 	 * calculate PI from 1 / PI
 	 */
-	mpfr_ui_div(__impl->pi, 1, __impl->pi, CFG_MPFR_RND);
+	mpfr_ui_div(__impl->pi, 1UL, __impl->pi, CFG_MPFR_RND);
 	//printf("pi(%d - %d) = %s\n", k, k * 8, get_pi_value(pi, k*8));
 	//mpfr_out_str(stdout, 10, 0, pi, CFG_MPFR_RND);
 	//printf("\n");

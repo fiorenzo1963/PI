@@ -124,9 +124,9 @@ struct mpfr_pi_impl *pi_impl_ramanujan_1910_initialize(const long digits, unsign
 	 *                                                    # 9801 = 99^2
 	 */
 	/* calculate cmult constant */
-	mpfr_sqrt_ui(__impl->cmult, 2, CFG_MPFR_RND);
-	mpfr_mul_ui(__impl->cmult, __impl->cmult, 2, CFG_MPFR_RND);
-	mpfr_div_ui(__impl->cmult, __impl->cmult, 9801, CFG_MPFR_RND);
+	mpfr_sqrt_ui(__impl->cmult, 2UL, CFG_MPFR_RND);
+	mpfr_mul_ui(__impl->cmult, __impl->cmult, 2UL, CFG_MPFR_RND);
+	mpfr_div_ui(__impl->cmult, __impl->cmult, 9801UL, CFG_MPFR_RND);
 	// printf("make_pi: cmult = ");
 	// mpfr_out_str(stdout, 10, 0, cmult, CFG_MPFR_RND);
 	// printf("\n");
@@ -165,11 +165,11 @@ static int pi_impl_ramanujan_1910_compute_next_term(struct mpfr_pi_impl *impl, u
 	 *
 	 */
 
-	mpfr_fac_ui(__impl->term_dividend, (4 * k), CFG_MPFR_RND);
+	mpfr_fac_ui(__impl->term_dividend, (4UL * k), CFG_MPFR_RND);
 	/* term_dividend now has (4*k)! */
-	mpfr_set_ui(__impl->t0, 26390, CFG_MPFR_RND);
+	mpfr_set_ui(__impl->t0, 26390UL, CFG_MPFR_RND);
 	mpfr_mul_ui(__impl->t0, __impl->t0, k, CFG_MPFR_RND);
-	mpfr_add_ui(__impl->t0, __impl->t0, 1103, CFG_MPFR_RND);
+	mpfr_add_ui(__impl->t0, __impl->t0, 1103UL, CFG_MPFR_RND);
 	/* t0 has (1103 + 26390 * k) */
 	mpfr_mul(__impl->term_dividend, __impl->term_dividend, __impl->t0, CFG_MPFR_RND);
 	/* term_dividend calculated */
@@ -184,10 +184,10 @@ static int pi_impl_ramanujan_1910_compute_next_term(struct mpfr_pi_impl *impl, u
 	 *
 	 */
 	mpfr_fac_ui(__impl->term_divisor, k, CFG_MPFR_RND);
-	mpfr_pow_ui(__impl->term_divisor, __impl->term_divisor, 4, CFG_MPFR_RND);
+	mpfr_pow_ui(__impl->term_divisor, __impl->term_divisor, 4UL, CFG_MPFR_RND);
 	/* term_divisor now has ((k!) ^ 4) */
-	mpfr_set_ui(__impl->t0, 396, CFG_MPFR_RND);
-	mpfr_pow_ui(__impl->t0, __impl->t0, (4 * k), CFG_MPFR_RND);
+	mpfr_set_ui(__impl->t0, 396UL, CFG_MPFR_RND);
+	mpfr_pow_ui(__impl->t0, __impl->t0, (4UL * k), CFG_MPFR_RND);
 	/* t0 has (396 ^ (4 * k)) */
 	mpfr_mul(__impl->term_divisor, __impl->term_divisor, __impl->t0, CFG_MPFR_RND);
 	/* term_divisor calculated */
@@ -256,7 +256,7 @@ static mpfr_t *pi_impl_ramanujan_1910_get_value(struct mpfr_pi_impl *impl, long 
 	/*
 	 * calculate PI from 1 / PI
 	 */
-	mpfr_ui_div(__impl->pi, 1, __impl->pi, CFG_MPFR_RND);
+	mpfr_ui_div(__impl->pi, 1UL, __impl->pi, CFG_MPFR_RND);
 	//printf("pi(%d - %d) = %s\n", k, k * 8, get_pi_value(pi, k*8));
 	//mpfr_out_str(stdout, 10, 0, pi, CFG_MPFR_RND);
 	//printf("\n");
