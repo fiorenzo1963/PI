@@ -176,7 +176,7 @@ int main(int argc, char **argv)
 	printf("\n");
 	printf("CFG_MPFR_PREC = %d\n", CFG_MPFR_PREC);
 	printf("mpfr_custom_get_size(CFG_MPFR_PREC) = %ld\n", mpfr_custom_get_size(CFG_MPFR_PREC));
-	printf("approximate decimals for CFG_MPFR_PREC = %ld (upper bound)\n", (long)((float)CFG_MPFR_PREC / 3.5));
+	printf("approximate decimals for CFG_MPFR_PREC = %ld (upper bound)\n", (long)((long)CFG_MPFR_PREC / 4));
 	printf("\n");
 
 	if (argc != 3) {
