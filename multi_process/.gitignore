@@ -1,4 +1,5 @@
 mpfr_pi
+mpfr_pi.x
 *.log
 *.out
 core
