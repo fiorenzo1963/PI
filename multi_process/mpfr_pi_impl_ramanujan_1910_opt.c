@@ -115,19 +115,17 @@ static const char *pi_impl_ramanujan_1910_opt_get_name(void)
 }
 
 static void pi_impl_ramanujan_1910_opt_deinitialize(struct mpfr_pi_impl *impl);
-static int pi_impl_ramanujan_1910_opt_compute_next_term(struct mpfr_pi_impl *impl, unsigned long *out_k, long *digits_out);
-static mpfr_t *pi_impl_ramanujan_1910_opt_get_value(struct mpfr_pi_impl *impl, long *digits_out);
+static const mpfr_t * pi_impl_ramanujan_1910_opt_compute_next_term(struct mpfr_pi_impl *impl, unsigned long *out_k);
+static const void pi_impl_ramanujan_1910_opt_get_value(const mpfr_t *partial_sum, mpfr_t *result_out);
 
 /* actual implementation struct for this algorithm */
 struct __mpfr_pi_impl {
 	/* generic part */
 	struct mpfr_pi_impl g;
 	/* private part */
+	unsigned long start_k; /* starting k, just for record */
 	unsigned long curr_k; /* current k */
 	unsigned long curr_4k; /* current 4k */
-	long curr_digits;
-	long desired_digits; /* desired digits */
-	unsigned long max_k; /* max_k to reach desired digits */
 	/* various state variables needed */
 	/*
 	 * temp variables reused at each iteration
@@ -146,15 +144,16 @@ struct __mpfr_pi_impl {
 	mpfr_t pi;
 };
 
+#if 0
 #define DIGITS_TO_K(d)	(((d) / 8L) + 1L)		/* number of iterations to get "d" digits */
-#define SLACK_K		DIGITS_TO_K(16L)		/* slack factor added to the above just to be sure */
 /* arg reused, must pass l-value */
 #define K_TO_DIGITS(k)	((k) >= SLACK_K ? ((k) * 8L) - SLACK_K : 0L)
+#endif
 
 #define __SAFE_LONG_MAX		(LONG_MAX / 2L)
 #define __SAFE_ULONG_MAX	(ULONG_MAX / 2UL)
 
-struct mpfr_pi_impl *pi_impl_ramanujan_1910_opt_initialize(const long digits, unsigned long *out_max_k)
+struct mpfr_pi_impl *pi_impl_ramanujan_1910_opt_initialize(unsigned long digits, const unsigned long k_start)
 {
 	struct __mpfr_pi_impl *__impl = malloc(sizeof (struct __mpfr_pi_impl));
 	assert(__impl != NULL);
@@ -164,19 +163,21 @@ struct mpfr_pi_impl *pi_impl_ramanujan_1910_opt_initialize(const long digits, un
 	__impl->g.f_pi_compute_next_term = pi_impl_ramanujan_1910_opt_compute_next_term;
 	__impl->g.f_pi_get_value = pi_impl_ramanujan_1910_opt_get_value;
 
-	__impl->curr_k = 0UL;
-	__impl->curr_4k = 0UL;
-	__impl->curr_digits = 0L;
-	__impl->desired_digits = digits;
-	printf("pi_impl_ramanujan_1910_opt_initialize: desired digits = %ld\n", __impl->desired_digits);
-	/* iterations needed */
-	__impl->max_k = DIGITS_TO_K(digits) + SLACK_K;
-	assert(digits < __SAFE_LONG_MAX);
-	assert(__impl->max_k < __SAFE_ULONG_MAX);
-	/* algorithm computes 4k directly with unsigned longs */
-	assert(__impl->max_k < __SAFE_ULONG_MAX / 4UL);
-	printf("pi_impl_ramanujan_1910_opt_initialize: max_k = %lu\n", __impl->max_k);
+	/*
+	 * make number of iterations for requested digits will not make the divisor in
+	 * the term sum overflow, not for (4 * k), not for the expression below:
+	 *
+	 * mpfr_mul_ui(__impl->term_dividend, __impl->curr_fact_4k, (1103UL + 26390UL * k), CFG_MPFR_RND);
+	 */
+	assert(k_start < (__SAFE_ULONG_MAX / 4UL));
+	assert(k_start < (__SAFE_ULONG_MAX / 26390UL));
+	__impl->start_k = k_start;
+	__impl->curr_k = __impl->start_k;
+	__impl->curr_4k = __impl->start_k * 4UL;
 	/* various state variables needed */
+	/*
+	 * FIXME: need to dynamically calculate desired precision by using "digits" input arg
+	 */
 	mpfr_init2(__impl->curr_fact_k, CFG_MPFR_PREC);
 	mpfr_init2(__impl->curr_fact_4k, CFG_MPFR_PREC);
 	mpfr_init2(__impl->term_dividend, CFG_MPFR_PREC);
@@ -187,27 +188,14 @@ struct mpfr_pi_impl *pi_impl_ramanujan_1910_opt_initialize(const long digits, un
 	mpfr_init2(__impl->pi, CFG_MPFR_PREC);
 	mpfr_init2(__impl->t0, CFG_MPFR_PREC);
 
-	/*
-	 * CMULT = (2 * sqrt(2)) / 9801			      # constant
-	 *                                                    # 9801 = 99^2
-	 */
-	/* calculate cmult constant */
-	mpfr_sqrt_ui(__impl->cmult, 2UL, CFG_MPFR_RND);
-	mpfr_mul_ui(__impl->cmult, __impl->cmult, 2UL, CFG_MPFR_RND);
-	mpfr_div_ui(__impl->cmult, __impl->cmult, 9801UL, CFG_MPFR_RND);
-	// printf("make_pi: cmult = ");
-	// mpfr_out_str(stdout, 10, 0, cmult, CFG_MPFR_RND);
-	// printf("\n");
-
 	/* set term_sum */
 	mpfr_set_ui(__impl->term_sum, 0UL, CFG_MPFR_RND);
 
-	/* set FACT(0) */
-	mpfr_set_ui(__impl->curr_fact_k, 1UL, CFG_MPFR_RND);
-	/* set FACT4(0) */
-	mpfr_set_ui(__impl->curr_fact_4k, 1UL, CFG_MPFR_RND);
+	/* set FACT(k) */
+	mpfr_fac_ui(__impl->curr_fact_k, __impl->start_k, CFG_MPFR_RND);
+	/* set FACT4(k) = FACT4(k) = FACT(4 * k) */
+	mpfr_fac_ui(__impl->curr_fact_4k, (__impl->start_k * 4UL), CFG_MPFR_RND);
 
-	*out_max_k = __impl->max_k;
 	return (struct mpfr_pi_impl *)__impl;
 }
 
@@ -227,7 +215,7 @@ static void pi_impl_ramanujan_1910_opt_deinitialize(struct mpfr_pi_impl *impl)
 	free(__impl);
 }
 
-static int pi_impl_ramanujan_1910_opt_compute_next_term(struct mpfr_pi_impl *impl, unsigned long *out_k, long *digits_out)
+static const mpfr_t * pi_impl_ramanujan_1910_opt_compute_next_term(struct mpfr_pi_impl *impl, unsigned long *out_k)
 {
 	struct __mpfr_pi_impl *__impl = (struct __mpfr_pi_impl *)impl;
 	const unsigned long k = __impl->curr_k;
@@ -305,8 +293,6 @@ static int pi_impl_ramanujan_1910_opt_compute_next_term(struct mpfr_pi_impl *imp
 	 * calculate out values and retval.
 	 */
 	*out_k = __impl->curr_k;
-	*digits_out = K_TO_DIGITS(__impl->curr_k);
-	ret = (__impl->curr_k >= __impl->max_k) ? 1 : 0;
 
 
 	/*
@@ -327,30 +313,33 @@ static int pi_impl_ramanujan_1910_opt_compute_next_term(struct mpfr_pi_impl *imp
 	mpfr_mul_ui(__impl->curr_fact_k, __impl->curr_fact_k, __impl->curr_k, CFG_MPFR_RND);
 	/*
 	 * compute FACT4(k) as:
-	 *              FACT4(4k) = FACT(4k - 4)) * 4k * (4k - 1) * (4k - 2) * (4k - 3)
+	 *              FACT4(4k) = FACT(PREV(4k)) * 4k * (4k - 1) * (4k - 2) * (4k - 3)
 	 */
 	mpfr_mul_ui(__impl->curr_fact_4k, __impl->curr_fact_4k, __impl->curr_4k, CFG_MPFR_RND);
 	mpfr_mul_ui(__impl->curr_fact_4k, __impl->curr_fact_4k, (__impl->curr_4k - 1UL), CFG_MPFR_RND);
 	mpfr_mul_ui(__impl->curr_fact_4k, __impl->curr_fact_4k, (__impl->curr_4k - 2UL), CFG_MPFR_RND);
 	mpfr_mul_ui(__impl->curr_fact_4k, __impl->curr_fact_4k, (__impl->curr_4k - 3UL), CFG_MPFR_RND);
 
-	return ret;
+	return &__impl->term_sum;
 }
 
-static mpfr_t *pi_impl_ramanujan_1910_opt_get_value(struct mpfr_pi_impl *impl, long *digits_out)
+static const void pi_impl_ramanujan_1910_opt_get_value(const mpfr_t *partial_sum, mpfr_t *result_out)
 {
-	struct __mpfr_pi_impl *__impl = (struct __mpfr_pi_impl *)impl;
 	int ret;
 
 	/*
-	 * use (curr_k - 1), as curr_k has not been computed yet
+	 * CMULT = (2 * sqrt(2)) / 9801			      # constant
+	 *                                                    # 9801 = 99^2
 	 */
-
-	// printf("pi_impl_ramanujan_1910_opt_get_value: ret=%d, curr_k-1=%ld, max_k=%ld\n", ret, (__impl->curr_k - 1),__impl->max_k);
-	if (__impl->curr_k == 0UL || K_TO_DIGITS(__impl->curr_k - 1) == 0) {
-		*digits_out = 0L;
-		return NULL;
-	}
+	/*
+	 * calculate CMULT constant directly into result
+	 */
+	mpfr_sqrt_ui((*result_out), 2UL, CFG_MPFR_RND);
+	mpfr_mul_ui((*result_out), (*result_out), 2UL, CFG_MPFR_RND);
+	mpfr_div_ui((*result_out), (*result_out), 9801UL, CFG_MPFR_RND);
+	// printf("make_pi: cmult = ");
+	// mpfr_out_str(stdout, 10, 0, cmult, CFG_MPFR_RND);
+	// printf("\n");
 
 	/*
 	 * make sure to use max_k in digits estimation,
@@ -360,19 +349,15 @@ static mpfr_t *pi_impl_ramanujan_1910_opt_get_value(struct mpfr_pi_impl *impl, l
 	/*
 	 * calculate 1 / PI = cmult * term_sum
 	 */
-	mpfr_mul(__impl->pi, __impl->cmult, __impl->term_sum, CFG_MPFR_RND);
+	mpfr_mul((*result_out), (*result_out), (*partial_sum), CFG_MPFR_RND);
 	//printf("1/pi(%d) = ", k);
 	//mpfr_out_str(stdout, 10, 0, pi, CFG_MPFR_RND);
 	//printf("\n");
 	/*
 	 * calculate PI from 1 / PI
 	 */
-	mpfr_ui_div(__impl->pi, 1UL, __impl->pi, CFG_MPFR_RND);
+	mpfr_ui_div((*result_out), 1UL, (*result_out), CFG_MPFR_RND);
 	//printf("pi(%d - %d) = %s\n", k, k * 8, get_pi_value(pi, k*8));
 	//mpfr_out_str(stdout, 10, 0, pi, CFG_MPFR_RND);
 	//printf("\n");
-
-	*digits_out = K_TO_DIGITS(__impl->curr_k - 1);
-
-	return &__impl->pi;
 }

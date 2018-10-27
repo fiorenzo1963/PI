@@ -19,6 +19,8 @@
 /* derived from above */
 #define CFG_MPFR_PREC_STR	__stringify(CFG_MPFR_PREC)
 
+#define MAX_DIGITS_PREC		((unsigned long)(((double)CFG_MPFR_PREC / 4) * 0.95))
+
 static char *mpfr_t_to_str(mpfr_t *value, long chars)
 {
 	char *buf;
@@ -45,11 +47,11 @@ struct mpfr_pi_impl {
 	 * initialize an implementation and return its struct
 	 * the init function will add extra state variables to this struct, so do not make any
 	 * size assumptions on it.
-	 * sets iteration K value to 0 and other implementation specific constants
-	 * set out_max_k to rhe number of iterations (i.e., max K value), if known, otherwise 0.
+	 * sets initial iteration K value to "start_k" and other implementation specific constants.
 	 * if the implementation optimizes this calculation and keeps intermediate state, initialize this state.
+	 * digits is the approximate maximum number of digits the calculation wants to achieve in total.
 	 */
-	struct mpfr_pi_impl * (*f_initialize)(const long digits, unsigned long *out_max_k);
+	struct mpfr_pi_impl * (*f_initialize)(const unsigned long digits, const unsigned long k_start);
 	/*
 	 * free an implementation struct.
 	 */
@@ -57,19 +59,21 @@ struct mpfr_pi_impl {
 	/*
 	 * compute K(i) term of the series.
 	 * the implementation is free to optimize this calculation and keep intermediate state.
-	 * return 0 if more iterations are needed, 1 if the desired precision has been reached.
-	 * sets computed k in k_out.
-	 * set digits_out if the digits are known, otherwise sets to 0.
+	 * sets computed k in k_out, which means k_out gets incremented by 1 on each call.
+	 * if this is called N times, the k values partial sum will be from [k_start .. k_start + N].
 	 * (may set digits_out every now and then, so it's not guaranteed to be updated at every iteration).
+	 *
+	 * returns partial sum of [k_start .. k_start + N].
 	 */
-	int (*f_pi_compute_next_term)(struct mpfr_pi_impl *impl, unsigned long *k_out, long *digits_out);
+	const mpfr_t * (*f_pi_compute_next_term)(struct mpfr_pi_impl *impl, unsigned long *k_out);
 	/*
-	 * this can be called anytime, return NULL if estimated digits is still 0.
-	 * it computes PI based on the current values.
-	 * if called after f_pi_computer_term returns 1, it's guaranteed to have at least
-	 * the desired number of digits of precision.
+	 * this can be called anytime, 
+	 * caller must add all the partial sums to have to have a full sequence from 0 to M into
+	 * partial_sum, and will get an approximate value for PI in return into result_out.
+	 * Ramanujan's algorithm only yields exactly 8 digits per iteration up to 100K digits or so,
+	 * at which point is begins be less than 8 (something like 98% off 8 dights per iteration after it).
 	 */
-	 mpfr_t * (*f_pi_get_value)(struct mpfr_pi_impl *impl, long *digits_out);
+	 void (*f_pi_get_value)(const mpfr_t *partial_sum, mpfr_t *result_out);
 };
 
 #endif
