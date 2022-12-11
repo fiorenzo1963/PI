@@ -1,0 +1,7 @@
+mpfr_pi
+mpfr_pi.x
+*.log
+*.out
+core
+*.o
+FPI_*.txt
